@@ -7,6 +7,7 @@ class Program
 {
     public static void Main(string[] args)
     {
+        // SmallExample take(1) with MaxMinutes 9 gives 457M options (and counting...)
         foreach (var blueprint in ReadBlueprints("SmallExample.txt").Take(1)) // ################
         {
             Console.WriteLine($"*** Blueprint ***\n{blueprint}\n");
@@ -26,7 +27,7 @@ class Program
 
 class BlueprintOptimizer
 {
-    const int MaxMinutes = 8;
+    const int MaxMinutes = 9;
     Blueprint blueprint;
 
     public BlueprintOptimizer(Blueprint blueprint) => this.blueprint = blueprint;
