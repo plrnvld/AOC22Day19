@@ -90,18 +90,20 @@ record struct MoveList(List<(Move move, int minute)> Moves, Resources Resources)
             return Enumerable.Empty<MoveList>();
 
         var resources = Resources;
-        var nextMoves = this with { Resources = Resources.Next() };
-
-        var buyableRobots = allRobots.Where(robot => resources.CanBuy(robot, blueprint));
+        var nextResources = Resources.Next();
+        var nextMoves = this with { Resources = nextResources };
 
         // ########################## What about buying multiple robots??????????
-        return TryBuyingRobots(nextMoves, blueprint);
+        var boughtRobots = TryBuyingRobots(nextMoves, blueprint);      
+
+        return boughtRobots.Concat(new[] { nextMoves });
     }
 
     static IEnumerable<MoveList> TryBuyingRobots(MoveList moveList, Blueprint blueprint)
     {
         var buyableRobots = allRobots.Where(robot => moveList.Resources.CanBuy(robot, blueprint));
-        var addRobotsToMoves = buyableRobots.Select(newRobot =>
+        
+        return buyableRobots.Select(newRobot =>
         {
             // What about buying multiple robots
             var buyRobotMove = (new Move(newRobot), moveList.Resources.Minutes);
@@ -111,8 +113,6 @@ record struct MoveList(List<(Move move, int minute)> Moves, Resources Resources)
                 Resources = moveList.Resources.Buy(newRobot, blueprint)
             };
         });
-
-        return addRobotsToMoves.Concat(new[] { moveList });
     }
 
     public static MoveList Empty = new MoveList(new List<(Move, int)>(), Resources.StartResources);
