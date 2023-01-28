@@ -7,14 +7,15 @@ class Program
 {
     public static void Main(string[] args)
     {
-        foreach (var blueprint in ReadBlueprints("Example.txt").Take(1)) // ################
+        foreach (var blueprint in ReadBlueprints("SmallExample.txt").Take(1)) // ################
         {
             Console.WriteLine($"*** Blueprint ***\n{blueprint}\n");
 
             var blueprintOptimizer = new BlueprintOptimizer(blueprint);
             var best = blueprintOptimizer.GetBestMoveList();
 
-            Console.WriteLine($"\nBest moves have {best.Resources.Geodes} geodes:\n\n{best}\n");
+            // Console.WriteLine($"\nBest moves have {best.Resources.Geodes} geodes:\n\n{best}\n");
+            Console.WriteLine($"\nBest moves have {best.Resources.Ore} ore:\n\n{best}\n");
             Console.WriteLine(string.Join("\n", best.Moves));
         }
     }
@@ -25,7 +26,7 @@ class Program
 
 class BlueprintOptimizer
 {
-    const int MaxMinutes = 17;
+    const int MaxMinutes = 8;
     Blueprint blueprint;
 
     public BlueprintOptimizer(Blueprint blueprint) => this.blueprint = blueprint;
@@ -52,9 +53,9 @@ class BlueprintOptimizer
 
             foreach (var movesList in newMovesLists)
             {
-                if (movesList.Resources.Geodes > best.Resources.Geodes)
+                if (movesList.Resources.Ore > best.Resources.Ore)
                 {
-                    Console.WriteLine($"! Best result now {movesList.Resources.Geodes}");
+                    Console.WriteLine($"! Best result now {movesList.Resources.Ore}");
                     best = movesList;
                 }
             }
@@ -83,36 +84,50 @@ record struct MoveList(List<(Move move, int minute)> Moves, Resources Resources)
     static Robot[] allRobots = new Robot[] { Robot.Ore, Robot.Clay, Robot.Obsidian, Robot.Geode };
     static Robot[] oreClay = new Robot[] { Robot.Ore, Robot.Clay };
     static Robot[] oreClayObsidian = new Robot[] { Robot.Ore, Robot.Clay, Robot.Obsidian };
-    
+
     public IEnumerable<MoveList> StepMinute(Blueprint blueprint, int maxMinutes)
     {
         if (Resources.Minutes >= maxMinutes)
             return Enumerable.Empty<MoveList>();
 
-        var resources = Resources;
-        var nextResources = Resources.Next();
-        var nextMoves = this with { Resources = nextResources };
+        var nextMovesWithoutBuying = new[] { this with { Resources = Resources.Next() } };
 
-        // ########################## What about buying multiple robots??????????
-        var boughtRobots = TryBuyingRobots(nextMoves, blueprint);      
+        var allBoughtRobots = new List<MoveList>();
 
-        return boughtRobots.Concat(new[] { nextMoves });
+        var iter = 1;
+        var newBoughtRobotsMoves = TryBuyingRobots(nextMovesWithoutBuying, blueprint, iter);
+
+        while (newBoughtRobotsMoves.Any())
+        {
+            iter += 1;
+            allBoughtRobots.AddRange(newBoughtRobotsMoves);
+            newBoughtRobotsMoves = TryBuyingRobots(newBoughtRobotsMoves, blueprint, iter);
+        }
+
+        return allBoughtRobots.Concat(nextMovesWithoutBuying);
     }
 
-    static IEnumerable<MoveList> TryBuyingRobots(MoveList moveList, Blueprint blueprint)
+    static IEnumerable<MoveList> TryBuyingRobots(IEnumerable<MoveList> moveLists, Blueprint blueprint, int iter)
     {
-        var buyableRobots = allRobots.Where(robot => moveList.Resources.CanBuy(robot, blueprint));
-        
-        return buyableRobots.Select(newRobot =>
+        var movesWithRobotBought = new List<MoveList>();
+
+        foreach (var moveList in moveLists)
         {
-            // What about buying multiple robots
-            var buyRobotMove = (new Move(newRobot), moveList.Resources.Minutes);
-            return moveList with
+            var buyableRobots = allRobots.Where(robot => moveList.Resources.CanBuy(robot, blueprint));
+
+            movesWithRobotBought.AddRange(buyableRobots.Select(newRobot =>
             {
-                Moves = moveList.Moves.Concat(new[] { buyRobotMove }).ToList(),
-                Resources = moveList.Resources.Buy(newRobot, blueprint)
-            };
-        });
+                var buyRobotMove = (new Move(newRobot), moveList.Resources.Minutes);
+                return moveList with
+                {
+                    Moves = moveList.Moves.Concat(new[] { buyRobotMove }).ToList(),
+                    Resources = moveList.Resources.Buy(newRobot, blueprint)
+                };
+            }));
+        }
+
+        // Console.WriteLine($"  > returning {movesWithRobotBought.Count} to buy");
+        return movesWithRobotBought;
     }
 
     public static MoveList Empty = new MoveList(new List<(Move, int)>(), Resources.StartResources);
