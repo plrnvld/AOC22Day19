@@ -15,7 +15,7 @@ class Program
             var best = blueprintOptimizer.GetBestMoveList();
 
             var moveListText = string.Join(", ", best.Moves);
-            Console.WriteLine($"Best moves have {best.Resources.Geodes} geodes: {best}\n");
+            Console.WriteLine($"\nBest moves have {best.Resources.Geodes} geodes: {best}\n");
             Console.WriteLine(moveListText);
         }
     }
@@ -26,7 +26,7 @@ class Program
 
 class BlueprintOptimizer
 {
-    const int MaxMinutes = 6;
+    const int MaxMinutes = 12;
     Blueprint blueprint;
 
     public BlueprintOptimizer(Blueprint blueprint) => this.blueprint = blueprint;
@@ -35,46 +35,33 @@ class BlueprintOptimizer
     {
         var startMove = MoveList.Empty;
         var bestMoves = startMove;
-        var currMinute = 0;
         var step = 0;
 
-        var queue = new Stack<MoveList>();
-        queue.Push(startMove);
+        var stack = new Stack<MoveList>();
+        stack.Push(startMove);
 
-        while (queue.Any())
+        while (stack.Any())
         {
+            step += 1;
+
             const int div = 1_000_000;
             const int milli = 1_000_000;
             if (step % div == 0)
-                Console.WriteLine($"> [{step/milli}M] current # is {queue.Count}");
-            step += 1;
-            
-            var curr = queue.Pop();
+                Console.WriteLine($"> [{step / milli}M] current # is {stack.Count}");
 
-            if (curr.Resources.Minutes > currMinute)
+            var newMovesLists = stack.Pop().StepMinute(blueprint, MaxMinutes).ToList();
+
+            foreach (var movesList in newMovesLists)
             {
-                currMinute = curr.Resources.Minutes;
-                // Console.WriteLine($"Starting with minute {currMinute}");
-            }
-
-            var newMovesLists = curr.StepMinute(blueprint).ToList();
-
-            foreach (var movesList in newMovesLists.Where(ml => ml.Resources.Minutes <= MaxMinutes))
-            {
-                if (movesList.Resources.Ore > bestMoves.Resources.Ore)
+                if (movesList.Resources.Geodes > bestMoves.Resources.Geodes)
                 {
-                    Console.WriteLine($"! Best result now {movesList.Resources.Ore}");
+                    Console.WriteLine($"! Best result now {movesList.Resources.Geodes}");
                     bestMoves = movesList;
                 }
             }
 
-            // Only enqueue when there are minutes left
-            foreach (var movesList in newMovesLists.Where(ml => ml.Resources.Minutes <= MaxMinutes))
-            {
-                // var lastMoveText = movesList.Moves.Any() ?  movesList.Moves.Last().ToString() : "<no moves>";
-                // Console.WriteLine($"    enqueueing with last move {lastMoveText}");
-                queue.Push(movesList);
-            }
+            foreach (var movesList in newMovesLists)
+                stack.Push(movesList);
         }
 
         return bestMoves;
@@ -100,52 +87,40 @@ record struct MoveList(List<(Move move, int minute)> Moves, Resources Resources)
 
     static Robot[] oreClayObsidian = new Robot[] { Robot.Ore, Robot.Clay, Robot.Obsidian };
 
-    public IEnumerable<MoveList> StepMinute(Blueprint blueprint)
+    public IEnumerable<MoveList> StepMinute(Blueprint blueprint, int maxMinutes)
     {
+        if (Resources.Minutes >= maxMinutes)
+            return Enumerable.Empty<MoveList>();
+
         var resources = Resources;
         var possibleRobots = PossibleRobots().ToList();
-        var nextRobots = possibleRobots.Where(robot => resources.CanBuy(robot, blueprint)).ToList();
         var nextMoves = this with { Resources = Resources.Next() };
 
-        // if (possibleRobots.Count > 1)
-        //     Console.WriteLine($"> Possible robots: {string.Join(",", possibleRobots)}");
+        var buyableRobots = possibleRobots.Where(robot => resources.CanBuy(robot, blueprint));
 
-        if (!nextRobots.Any())
-        {
-            // Console.WriteLine("> No robots to buy");
-            return new[] { nextMoves };
-        }
-        else
-        {
-            // ################ What about buying multiple robots at once?
-            
-            var addRobotsToMoves = nextRobots.Select(newRobot =>
-                {
-                    var newMove = (new Move(newRobot), resources.Minutes);
-                    var newMovesList = nextMoves with 
-                    { 
-                        Moves = nextMoves.Moves.Concat(new[] { newMove }).ToList(),
-                        Resources = resources.Buy(newRobot, blueprint) 
-                    };
-                    // Console.WriteLine($"> Buying {newRobot}");
-                    return newMovesList;
-                });
+        // ########################## What about buying multiple robots??????????
+        return TryBuyingRobots(nextMoves, possibleRobots, blueprint);
+    }
 
-            var waitWithoutBuying = nextMoves;
-            return addRobotsToMoves.Concat(new [] { waitWithoutBuying });;
-        }    
+    static IEnumerable<MoveList> TryBuyingRobots(MoveList moveList, List<Robot> possibleRobots, Blueprint blueprint)
+    {
+        var buyableRobots = possibleRobots.Where(robot => moveList.Resources.CanBuy(robot, blueprint));
+        var addRobotsToMoves = buyableRobots.Select(newRobot =>
+        {
+            // What about buying multiple robots
+            var buyRobotMove = (new Move(newRobot), moveList.Resources.Minutes);
+            return moveList with
+            {
+                Moves = moveList.Moves.Concat(new[] { buyRobotMove }).ToList(),
+                Resources = moveList.Resources.Buy(newRobot, blueprint)
+            };
+        });
+
+        return addRobotsToMoves.Concat(new[] { moveList });
     }
 
     public IEnumerable<Robot> PossibleRobots()
     {
-        
-        
-        IEnumerable<Robot> Trace(Robot[] robots)
-        {
-            // Console.WriteLine($"Trace possible: {string.Join("|", robots)}");
-            return robots;
-        }
-        
         var hasClay = Moves.Any(m => m.move.Buy == Robot.Clay);
         var hasObsidian = Moves.Any(m => m.move.Buy == Robot.Obsidian);
 
@@ -175,19 +150,19 @@ record struct Resources(int Minutes, int Ore, int Clay, int Obsidian, int Geodes
                 OreRobots = OreRobots + 1,
                 Ore = Ore - blueprint.OreRobotOrePrice
             },
-            Robot.Clay => this with 
-            { 
-                ClayRobots = ClayRobots + 1, 
-                Ore = Ore - blueprint.ClayRobotOrePrice 
+            Robot.Clay => this with
+            {
+                ClayRobots = ClayRobots + 1,
+                Ore = Ore - blueprint.ClayRobotOrePrice
             },
-            Robot.Obsidian => this with 
-            { 
-                ObsidianRobots = ObsidianRobots + 1, 
+            Robot.Obsidian => this with
+            {
+                ObsidianRobots = ObsidianRobots + 1,
                 Ore = Ore - blueprint.ObsidianRobotOrePrice,
                 Clay = Clay - blueprint.ObsidianRobotClayPrice
             },
-            _ => this with 
-            { 
+            _ => this with
+            {
                 GeodeRobots = GeodeRobots + 1,
                 Ore = Ore - blueprint.GeodeRobotOrePrice,
                 Obsidian = Obsidian - blueprint.GeodeRobotObsidianPrice
