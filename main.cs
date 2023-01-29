@@ -15,8 +15,8 @@ class Program
             var blueprintOptimizer = new BlueprintOptimizer(blueprint);
             var best = blueprintOptimizer.GetBestMoveList();
 
-            // Console.WriteLine($"\nBest moves have {best.Resources.Geodes} geodes:\n\n{best}\n");
-            Console.WriteLine($"\nBest moves have {best.Resources.Ore} ore:\n\n{best}\n");
+            Console.WriteLine($"\nBest moves have {best.Resources.Geodes} geodes:\n\n{best}\n");
+            // Console.WriteLine($"\nBest moves have {best.Resources.Ore} ore:\n\n{best}\n");
             Console.WriteLine(string.Join("\n", best.Moves));
         }
     }
@@ -27,7 +27,7 @@ class Program
 
 class BlueprintOptimizer
 {
-    const int MaxMinutes = 9;
+    const int MaxMinutes = 11;
     Blueprint blueprint;
 
     public BlueprintOptimizer(Blueprint blueprint) => this.blueprint = blueprint;
@@ -54,29 +54,20 @@ class BlueprintOptimizer
 
             foreach (var movesList in newMovesLists)
             {
-                if (movesList.Resources.Ore > best.Resources.Ore)
+                if (movesList.CanStillBeatRecord(best.Resources.Geodes, MaxMinutes))
                 {
-                    Console.WriteLine($"! Best result now {movesList.Resources.Ore}");
-                    best = movesList;
+                    if (movesList.Resources.Geodes > best.Resources.Geodes)
+                    {
+                        Console.WriteLine($"! Best result now {movesList.Resources.Geodes}");
+                        best = movesList;
+                    }
+
+                    stack.Push(movesList);
                 }
             }
-
-            foreach (var movesList in newMovesLists)
-                stack.Push(movesList);
         }
 
         return best;
-    }
-}
-
-record struct Blueprint(int Num, int OreRobotOrePrice, int ClayRobotOrePrice, int ObsidianRobotOrePrice, int ObsidianRobotClayPrice, int GeodeRobotOrePrice, int GeodeRobotObsidianPrice)
-{
-    public static Blueprint From(string line)
-    {
-        var words = line.Split();
-        int Word(int index) => int.Parse(words[index]);
-
-        return new Blueprint(int.Parse(words[1][..^1]), Word(6), Word(12), Word(18), Word(21), Word(27), Word(30));
     }
 }
 
@@ -106,6 +97,28 @@ record struct MoveList(List<(Move move, int minute)> Moves, Resources Resources)
         }
 
         return allBoughtRobots.Concat(nextMovesWithoutBuying);
+    }
+
+    public bool CanStillBeatRecord(int geodeRecord, int maxMinutes)
+    {
+        int sumOverTime(int time, int currGeodeRobots) => 
+            currGeodeRobots * time*(time+1)/2;
+        
+        if (Resources.Geodes > geodeRecord)
+            return true;
+        
+        var geodesNeeded = geodeRecord + 1 - Resources.Geodes;
+        var minutesRemaining = maxMinutes - Resources.Minutes;
+
+        if (Resources.GeodeRobots == 0) // ################ Needs to change, but currently my formula is not compatible with 0 robots
+            return true;
+        
+        var canBeat = sumOverTime(minutesRemaining, Resources.GeodeRobots) >= geodesNeeded;
+
+        // if (!canBeat)
+        //     Console.WriteLine("  [terminate]");
+
+        return canBeat;
     }
 
     static IEnumerable<MoveList> TryBuyingRobots(IEnumerable<MoveList> moveLists, Blueprint blueprint, int iter)
@@ -185,4 +198,15 @@ enum Robot
     Clay,
     Obsidian,
     Geode
+}
+
+record struct Blueprint(int Num, int OreRobotOrePrice, int ClayRobotOrePrice, int ObsidianRobotOrePrice, int ObsidianRobotClayPrice, int GeodeRobotOrePrice, int GeodeRobotObsidianPrice)
+{
+    public static Blueprint From(string line)
+    {
+        var words = line.Split();
+        int Word(int index) => int.Parse(words[index]);
+
+        return new Blueprint(int.Parse(words[1][..^1]), Word(6), Word(12), Word(18), Word(21), Word(27), Word(30));
+    }
 }
