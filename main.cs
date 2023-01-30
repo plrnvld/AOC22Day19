@@ -27,7 +27,7 @@ class Program
 
 class BlueprintOptimizer
 {
-    const int MaxMinutes = 11;
+    const int MaxMinutes = 16;
     Blueprint blueprint;
 
     public BlueprintOptimizer(Blueprint blueprint) => this.blueprint = blueprint;
@@ -54,7 +54,7 @@ class BlueprintOptimizer
 
             foreach (var movesList in newMovesLists)
             {
-                if (movesList.CanStillBeatRecord(best.Resources.Geodes, MaxMinutes))
+                if (movesList.CanStillBeatRecord(best.Resources.Geodes + 1, MaxMinutes, blueprint))
                 {
                     if (movesList.Resources.Geodes > best.Resources.Geodes)
                     {
@@ -99,26 +99,29 @@ record struct MoveList(List<(Move move, int minute)> Moves, Resources Resources)
         return allBoughtRobots.Concat(nextMovesWithoutBuying);
     }
 
-    public bool CanStillBeatRecord(int geodeRecord, int maxMinutes)
+    public bool CanStillBeatRecord(int nextRecord, int maxMinutes, Blueprint blueprint)
     {
-        int sumOverTime(int time, int currGeodeRobots) => 
-            currGeodeRobots * time*(time+1)/2;
-        
-        if (Resources.Geodes > geodeRecord)
+        var stepsRemaining = maxMinutes - Resources.Minutes;
+        if (Resources.Geodes >= nextRecord)
             return true;
+
+        if (stepsRemaining == 1) // Buying robots won't help you        
+            return Resources.Geodes + Resources.GeodeRobots >= nextRecord;
+
+        if (stepsRemaining <= nextRecord) // Time to have geodes ready
+        {
+            var geodesNextStep = Resources.Geodes + Resources.GeodeRobots;
+            var extraGeodeRobotsRequiredNextStep = Math.Ceiling(((double)(nextRecord - geodesNextStep)) / (stepsRemaining - 1)) - Resources.GeodeRobots;
+            
+            var obsidianNeeded = blueprint.GeodeRobotObsidianPrice * extraGeodeRobotsRequiredNextStep;
+
+            if (Resources.Obsidian >= obsidianNeeded)
+                return true;
+
+            return false; // ##################### This is wrong, continue here
+        }
         
-        var geodesNeeded = geodeRecord + 1 - Resources.Geodes;
-        var minutesRemaining = maxMinutes - Resources.Minutes;
-
-        if (Resources.GeodeRobots == 0) // ################ Needs to change, but currently my formula is not compatible with 0 robots
-            return true;
-        
-        var canBeat = sumOverTime(minutesRemaining, Resources.GeodeRobots) >= geodesNeeded;
-
-        // if (!canBeat)
-        //     Console.WriteLine("  [terminate]");
-
-        return canBeat;
+        return true;
     }
 
     static IEnumerable<MoveList> TryBuyingRobots(IEnumerable<MoveList> moveLists, Blueprint blueprint, int iter)
