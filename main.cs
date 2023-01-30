@@ -8,7 +8,7 @@ class Program
     public static void Main(string[] args)
     {
         // SmallExample take(1) with MaxMinutes 9 gives 457M options (and counting...)
-        foreach (var blueprint in ReadBlueprints("SmallExample.txt").Take(1)) // ################
+        foreach (var blueprint in ReadBlueprints("Example.txt").Take(1)) // ################
         {
             Console.WriteLine($"*** Blueprint ***\n{blueprint}\n");
 
@@ -73,9 +73,9 @@ class BlueprintOptimizer
 
 record struct MoveList(List<(Move move, int minute)> Moves, Resources Resources)
 {
-    static Robot[] allRobots = new Robot[] { Robot.Ore, Robot.Clay, Robot.Obsidian, Robot.Geode };
-    static Robot[] oreClay = new Robot[] { Robot.Ore, Robot.Clay };
-    static Robot[] oreClayObsidian = new Robot[] { Robot.Ore, Robot.Clay, Robot.Obsidian };
+    static Robot[] allRobots = new Robot[] { Robot.Geode, Robot.Obsidian, Robot.Clay, Robot.Ore };
+    static Robot[] oreClay = new Robot[] { Robot.Clay, Robot.Ore };
+    static Robot[] oreClayObsidian = new Robot[] { Robot.Obsidian, Robot.Clay, Robot.Ore };
 
     public IEnumerable<MoveList> StepMinute(Blueprint blueprint, int maxMinutes)
     {
