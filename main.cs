@@ -99,29 +99,30 @@ record struct MoveList(List<(Move move, int minute)> Moves, Resources Resources)
         return allBoughtRobots.Concat(nextMovesWithoutBuying);
     }
 
-    public bool CanStillBeatRecord(int nextRecord, int maxMinutes, Blueprint blueprint)
-    {
+    public bool CanStillBeatRecord(int currRecord, int maxMinutes, Blueprint blueprint)
+    {        
+        var nextRecord = currRecord + 1;
         var stepsRemaining = maxMinutes - Resources.Minutes;
+
+        var directGeodeOutput = Resources.Geodes + Resources.GeodeRobots * stepsRemaining;
+        if (directGeodeOutput >= nextRecord)
+            return true;
+
+        // ############## var indirectGeodeOutput = Continue here
+        
+        if (stepsRemaining >= maxMinutes - 10)
+            return true;
+
         if (Resources.Geodes >= nextRecord)
             return true;
 
         if (stepsRemaining == 1) // Buying robots won't help you        
             return Resources.Geodes + Resources.GeodeRobots >= nextRecord;
 
-        if (stepsRemaining <= nextRecord) // Time to have geodes ready
-        {
-            var geodesNextStep = Resources.Geodes + Resources.GeodeRobots;
-            var extraGeodeRobotsRequiredNextStep = Math.Ceiling(((double)(nextRecord - geodesNextStep)) / (stepsRemaining - 1)) - Resources.GeodeRobots;
-            
-            var obsidianNeeded = blueprint.GeodeRobotObsidianPrice * extraGeodeRobotsRequiredNextStep;
-
-            if (Resources.Obsidian >= obsidianNeeded)
-                return true;
-
-            return false; // ##################### This is wrong, continue here
-        }
-        
-        return true;
+        return (Resources.Geodes - stepsRemaining * Resources.GeodeRobots) +
+            (Resources.Obsidian - stepsRemaining * Resources.ObsidianRobots) / blueprint.GeodeRobotObsidianPrice +
+            (Resources.Clay - stepsRemaining * Resources.ClayRobots) / (blueprint.GeodeRobotObsidianPrice * blueprint.ObsidianRobotClayPrice)
+            >= nextRecord;
     }
 
     static IEnumerable<MoveList> TryBuyingRobots(IEnumerable<MoveList> moveLists, Blueprint blueprint, int iter)
