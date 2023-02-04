@@ -27,7 +27,7 @@ class Program
 
 class BlueprintOptimizer
 {
-    const int MaxMinutes = 20;
+    const int MaxMinutes = 24;
     Blueprint blueprint;
 
     public BlueprintOptimizer(Blueprint blueprint) => this.blueprint = blueprint;
@@ -89,6 +89,10 @@ record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources)
 
     public bool CanStillBeatRecord(int currRecord, int maxMinutes, Blueprint blueprint)
     {
+        if (Resources.Minutes == maxMinutes - 4 && Resources.GeodeRobots == 0)
+            return false;
+
+        
         return true;
 
         /*
