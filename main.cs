@@ -13,7 +13,7 @@ class Program
             Console.WriteLine($"*** Blueprint ***\n{blueprint}\n");
 
             var blueprintOptimizer = new BlueprintOptimizer(blueprint);
-            var best = blueprintOptimizer.GetBestMoveList();
+            var best = blueprintOptimizer.GetBestStrategy();
 
             Console.WriteLine($"\nBest moves have {best.Resources.Geodes} geodes:\n\n{best}\n");
             // Console.WriteLine($"\nBest moves have {best.Resources.Ore} ore:\n\n{best}\n");
@@ -27,25 +27,25 @@ class Program
 
 class BlueprintOptimizer
 {
-    const int MaxMinutes = 14;
+    const int MaxMinutes = 12;
     Blueprint blueprint;
 
     public BlueprintOptimizer(Blueprint blueprint) => this.blueprint = blueprint;
 
-    public MoveList GetBestMoveList()
+    public Strategy GetBestStrategy()
     {
-        var startMove = MoveList.Empty;
+        var startMove = Strategy.Empty;
         var best = startMove;
         var step = 0;
 
-        var stack = new Stack<MoveList>();
+        var stack = new Stack<Strategy>();
         stack.Push(startMove);
 
         while (stack.Any())
         {
             step += 1;
 
-            const int div = 1_000_000;
+            const int div = 100_000;
             const int milli = 1_000_000;
             if (step % div == 0)
                 Console.WriteLine($"> [{step / milli}M] current # is {stack.Count}");
@@ -71,32 +71,22 @@ class BlueprintOptimizer
     }
 }
 
-record struct MoveList(List<(Move move, int minute)> Moves, Resources Resources)
+record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources)
 {
     static Robot[] allRobots = new Robot[] { Robot.Geode, Robot.Obsidian, Robot.Clay, Robot.Ore };
     static Robot[] oreClay = new Robot[] { Robot.Clay, Robot.Ore };
     static Robot[] oreClayObsidian = new Robot[] { Robot.Obsidian, Robot.Clay, Robot.Ore };
 
-    public IEnumerable<MoveList> StepMinute(Blueprint blueprint, int maxMinutes)
+    public IEnumerable<Strategy> StepMinute(Blueprint blueprint, int maxMinutes)
     {
         if (Resources.Minutes >= maxMinutes)
-            return Enumerable.Empty<MoveList>();
+            return Enumerable.Empty<Strategy>();
 
         var nextMovesWithoutBuying = new[] { this with { Resources = Resources.Next() } };
 
-        var allBoughtRobots = new List<MoveList>();
+        var newBoughtRobotsMoves = TryBuyingRobots(nextMovesWithoutBuying, blueprint);
 
-        var iter = 1;
-        var newBoughtRobotsMoves = TryBuyingRobots(nextMovesWithoutBuying, blueprint, iter);
-
-        while (newBoughtRobotsMoves.Any())
-        {
-            iter += 1;
-            allBoughtRobots.AddRange(newBoughtRobotsMoves);
-            newBoughtRobotsMoves = TryBuyingRobots(newBoughtRobotsMoves, blueprint, iter);
-        }
-
-        return allBoughtRobots.Concat(nextMovesWithoutBuying);
+        return newBoughtRobotsMoves.Concat(nextMovesWithoutBuying);
     }
 
     public bool CanStillBeatRecord(int currRecord, int maxMinutes, Blueprint blueprint)
@@ -123,61 +113,60 @@ record struct MoveList(List<(Move move, int minute)> Moves, Resources Resources)
             >= nextRecord;
     }
 
-    static IEnumerable<MoveList> TryBuyingRobots(IEnumerable<MoveList> moveLists, Blueprint blueprint, int iter)
+    static IEnumerable<Strategy> TryBuyingRobots(IEnumerable<Strategy> strategies, Blueprint blueprint) =>
+        strategies.SelectMany(ml => TryBuyingRobots(ml, blueprint));
+
+    static IEnumerable<Strategy> TryBuyingRobots(Strategy strategy, Blueprint blueprint) =>
+        TryBuyingRobots(strategy, new Move(), blueprint);
+
+
+    static IEnumerable<Strategy> TryBuyingRobots(Strategy strategy, Move currentMove, Blueprint blueprint)
     {
-        var movesWithRobotBought = new List<MoveList>();
+        var buyableRobots = allRobots.Where(robot => strategy.Resources.CanBuy(robot, blueprint));
 
-        foreach (var moveList in moveLists)
+        return buyableRobots.SelectMany(newRobot =>
         {
-            var buyableRobots = allRobots.Where(robot => moveList.Resources.CanBuy(robot, blueprint));
-
-            movesWithRobotBought.AddRange(buyableRobots.Select(newRobot =>
+            var buyRobotMove = (currentMove.BuyExtra(newRobot), strategy.Resources.Minutes);
+            var newStrategy = strategy with
             {
-                var buyRobotMove = (Move.Buy(newRobot), moveList.Resources.Minutes);
-                return moveList with
-                {
-                    Moves = moveList.Moves.Concat(new[] { buyRobotMove }).ToList(),
-                    Resources = moveList.Resources.Buy(newRobot, blueprint)
-                };
-            }));
-        }
+                Moves = strategy.Moves.Concat(new[] { buyRobotMove }).ToList(),
+                Resources = strategy.Resources.Buy(newRobot, blueprint)
+            };
+            
+            var allStrategies = new[] { newStrategy }.Concat(TryBuyingRobots(newStrategy, buyRobotMove.Item1, blueprint));
 
-        return movesWithRobotBought;
+            var groups = allStrategies.GroupBy(s => s.LastMoveKey); // Remove duplicate moves
+
+            return groups.Select(group => group.First());
+        });
     }
 
-    public static MoveList Empty = new MoveList(new List<(Move, int)>(), Resources.StartResources);
+    public static Strategy Empty = new Strategy(new List<(Move, int)>(), Resources.StartResources);
+
+    public string LastMoveKey => Moves.Last().Item1.Key();
 }
 
-record class Move
+record struct Move(int BuyOreRobots, int BuyClayRobots, int BuyObsidianRobots, int BuyGeodeRobots)
 {
-    public int BuyOreRobots { get; set; }
-    public int BuyClayRobots { get; set; }
-    public int BuyObsidianRobots { get; set; }
-    public int BuyGeodeRobots { get; set; }
+    public static Move Buy(Robot robot) => new Move().BuyExtra(robot);
 
-    public static Move Buy(Robot robot) =>
+    public Move BuyExtra(Robot robot) =>
         robot switch
         {
-            Robot.Ore => new Move { BuyOreRobots = 1 },
-            Robot.Clay => new Move { BuyClayRobots = 1 },
-            Robot.Obsidian => new Move { BuyObsidianRobots = 1 },
-            _ => new Move { BuyGeodeRobots = 1 },
+            Robot.Ore => this with { BuyOreRobots = BuyOreRobots + 1 },
+            Robot.Clay => this with { BuyClayRobots = BuyClayRobots + 1 },
+            Robot.Obsidian => this with { BuyObsidianRobots = BuyObsidianRobots + 1 },
+            _ => this with { BuyGeodeRobots = BuyGeodeRobots + 1 },
         };
-
-    public void BuyExtra(Robot robot)
-    {
-        switch (robot)
-        {
-            case Robot.Ore: BuyOreRobots += 1; break;
-            case Robot.Clay: BuyClayRobots += 1; break;
-            case Robot.Obsidian: BuyObsidianRobots += 1; break;
-            default: BuyGeodeRobots += 1; break;
-        };
-    }
 
     public string Key()
     {
-        var parts = new [] { ("Ore", BuyOreRobots), ("Cly", BuyClayRobots), ("Obs", BuyObsidianRobots), ("Geo", BuyGeodeRobots) }
+        var parts = new[] {
+                ("Ore", BuyOreRobots),
+                ("Cly", BuyClayRobots),
+                ("Obs", BuyObsidianRobots),
+                ("Geo", BuyGeodeRobots)
+            }
             .Where(buy => buy.Item2 > 0)
             .Select(buy => $"{buy.Item1}({buy.Item2})");
 
@@ -225,7 +214,7 @@ record struct Resources(int Minutes, int Ore, int Clay, int Obsidian, int Geodes
             _ => Ore >= blueprint.GeodeRobotOrePrice && Obsidian >= blueprint.GeodeRobotObsidianPrice,
         };
 
-    public static Resources StartResources = new Resources(0, 0, 0, 0, 0, 1, 0, 0, 0);
+    public static Resources StartResources = new Resources(0, 0, 0, 0, 0, OreRobots: 1, 0, 0, 0);
 }
 
 enum Robot
