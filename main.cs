@@ -61,9 +61,10 @@ class BlueprintOptimizer
                         Console.WriteLine($"! Best result now {movesList.Resources.Geodes}");
                         best = movesList;
 
-                        if (movesList.Resources.Geodes == 10)
+                        if (best.Resources.Geodes is 10)
                         {
-                            Console.WriteLine(string.Join("\n  ", best.Moves));
+                            var movesTexts = best.Moves.Select(m => $"  [{m.Item2}] {m.Item1}");
+                            Console.WriteLine(string.Join("\n", movesTexts));
                         }
                     }
 
