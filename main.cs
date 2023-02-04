@@ -61,7 +61,7 @@ class BlueprintOptimizer
                         Console.WriteLine($"! Best result now {movesList.Resources.Geodes}");
                         best = movesList;
 
-                        if (best.Resources.Geodes is 10)
+                        if (best.Resources.Geodes is 11)
                         {
                             var movesTexts = best.Moves.Select(m => $"  [{m.Item2}] {m.Item1}");
                             Console.WriteLine(string.Join("\n", movesTexts));
@@ -114,6 +114,10 @@ record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources)
 
         if (Resources.Obsidian > blueprint.GeodeRobotObsidianPrice + Resources.ObsidianRobots)
             return false;
+
+        var maxOrePrice = new [] { blueprint.GeodeRobotOrePrice, blueprint.ObsidianRobotOrePrice, blueprint.ClayRobotOrePrice }.Max();
+        if (Resources.Ore > maxOrePrice * 2)
+            return false;
         
         return true;
     }
@@ -124,6 +128,8 @@ record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources)
         var stack = new Stack<(Move, Strategy)>();
         stack.Push((new Move(), strategy));
 
+
+        var round = 1;
         while (stack.Any())
         {
             var (currMove, currStrategy) = stack.Pop();
@@ -135,13 +141,17 @@ record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources)
                 var newResources = currStrategy.Resources.Buy(buyableRobot, blueprint);
                 var newStrategy = currStrategy with
                 {
-                    Moves = currStrategy.Moves.SkipLast(1).Concat(new[] { (newMove, newResources.Minutes) }).ToList(),
+                    Moves = (round == 1 
+                        ? currStrategy.Moves.Concat(new[] { (newMove, newResources.Minutes) }) 
+                        : currStrategy.Moves.SkipLast(1).Concat(new[] { (newMove, newResources.Minutes) })).ToList(),
                     Resources = newResources
                 };
 
                 buyingStrategies.Add(newStrategy);
                 stack.Push((newMove, newStrategy));
             };
+
+            round += 1;
         }
         
         var result = buyingStrategies.GroupBy(s => s.LastMoveKey()).Select(group => group.First()); // Remove duplicate moves
