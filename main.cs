@@ -77,7 +77,7 @@ class BlueprintOptimizer
     }
 }
 
-record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources)
+record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources, Resources PrevResources)
 {
     static Robot[] allRobots = new Robot[] { Robot.Geode, Robot.Obsidian, Robot.Clay, Robot.Ore };
     static Robot[] oreClay = new Robot[] { Robot.Clay, Robot.Ore };
@@ -88,7 +88,7 @@ record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources)
         if (Resources.Minutes >= maxMinutes)
             return Enumerable.Empty<Strategy>();
 
-        var nextMovesWithoutBuying = this with { Resources = Resources.Next() };
+        var nextMovesWithoutBuying = this with { Resources = Resources.Next(), PrevResources = Resources };
 
         return TryBuyingRobots(nextMovesWithoutBuying, blueprint).Concat(new[] { nextMovesWithoutBuying });
     }
@@ -106,17 +106,17 @@ record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources)
         if (stepsRemaining == 3 && Resources.Geodes + 3 * Resources.GeodeRobots <= currRecord && Resources.Obsidian + Resources.ObsidianRobots < blueprint.GeodeRobotObsidianPrice)
             return false;
 
-        if (stepsRemaining == 4 && Resources.GeodeRobots == 0)
+        //if (stepsRemaining == 4 && Resources.GeodeRobots == 0)
+        //     return false;
+
+        if (Resources.Clay > blueprint.ObsidianRobotClayPrice + Resources.ClayRobots + 5)
             return false;
 
-        if (Resources.Clay > blueprint.ObsidianRobotClayPrice + Resources.ClayRobots)
-            return false;
-
-        if (Resources.Obsidian > blueprint.GeodeRobotObsidianPrice + Resources.ObsidianRobots)
+        if (Resources.Obsidian > blueprint.GeodeRobotObsidianPrice + Resources.ObsidianRobots + 5)
             return false;
 
         var maxOrePrice = new[] { blueprint.GeodeRobotOrePrice, blueprint.ObsidianRobotOrePrice, blueprint.ClayRobotOrePrice }.Max();
-        if (Resources.Ore > maxOrePrice * 2)
+        if (Resources.Ore > maxOrePrice * 4)
             return false;
 
         return true;
@@ -127,7 +127,7 @@ record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources)
         var buyingStrategies = new List<Strategy>();
         
         var (currMove, currStrategy) = (new Move(), strategy);
-        var buyableRobots = allRobots.Where(robot => currStrategy.Resources.CanBuy(robot, blueprint));
+        var buyableRobots = allRobots.Where(robot => currStrategy.PrevResources.CanBuy(robot, blueprint));
 
         foreach (var buyableRobot in buyableRobots)
         {
@@ -136,7 +136,8 @@ record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources)
             var newStrategy = currStrategy with
             {
                 Moves = currStrategy.Moves.Concat(new[] { (newMove, newResources.Minutes) }).ToList(),
-                Resources = newResources
+                Resources = newResources,
+                PrevResources = strategy.Resources
             };
 
             buyingStrategies.Add(newStrategy);
@@ -158,7 +159,7 @@ record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources)
         return result;
     }
 
-    public static Strategy Empty = new Strategy(new List<(Move, int)>(), Resources.StartResources);
+    public static Strategy Empty = new Strategy(new List<(Move, int)>(), Resources.StartResources, Resources.StartResources);
 }
 
 record struct Move(int BuyOreRobots, int BuyClayRobots, int BuyObsidianRobots, int BuyGeodeRobots)
@@ -207,7 +208,7 @@ record struct Resources(int Minutes, int Ore, int Clay, int Obsidian, int Geodes
         };
 
     public bool CanBuy(Robot robot, Blueprint blueprint) =>
-        robot switch
+        robot switch // ################## Should check with previous resources
         {
             Robot.Ore => Ore >= blueprint.OreRobotOrePrice,
             Robot.Clay => Ore >= blueprint.ClayRobotOrePrice,
