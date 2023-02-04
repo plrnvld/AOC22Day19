@@ -105,7 +105,7 @@ record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources)
 
         if (stepsRemaining == 3 && Resources.Geodes + 3 * Resources.GeodeRobots <= currRecord && Resources.Obsidian + Resources.ObsidianRobots < blueprint.GeodeRobotObsidianPrice)
             return false;
-        
+
         if (stepsRemaining == 4 && Resources.GeodeRobots == 0)
             return false;
 
@@ -115,49 +115,35 @@ record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources)
         if (Resources.Obsidian > blueprint.GeodeRobotObsidianPrice + Resources.ObsidianRobots)
             return false;
 
-        var maxOrePrice = new [] { blueprint.GeodeRobotOrePrice, blueprint.ObsidianRobotOrePrice, blueprint.ClayRobotOrePrice }.Max();
+        var maxOrePrice = new[] { blueprint.GeodeRobotOrePrice, blueprint.ObsidianRobotOrePrice, blueprint.ClayRobotOrePrice }.Max();
         if (Resources.Ore > maxOrePrice * 2)
             return false;
-        
+
         return true;
     }
 
     static IEnumerable<Strategy> TryBuyingRobots(Strategy strategy, Blueprint blueprint)
     {
         var buyingStrategies = new List<Strategy>();
-        var stack = new Stack<(Move, Strategy)>();
-        stack.Push((new Move(), strategy));
+        
+        var (currMove, currStrategy) = (new Move(), strategy);
+        var buyableRobots = allRobots.Where(robot => currStrategy.Resources.CanBuy(robot, blueprint));
 
-
-        var round = 1;
-        while (stack.Any())
+        foreach (var buyableRobot in buyableRobots)
         {
-            var (currMove, currStrategy) = stack.Pop();
-            var buyableRobots = allRobots.Where(robot => currStrategy.Resources.CanBuy(robot, blueprint));
-
-            foreach (var buyableRobot in buyableRobots)
+            var newMove = currMove.BuyExtra(buyableRobot);
+            var newResources = currStrategy.Resources.Buy(buyableRobot, blueprint);
+            var newStrategy = currStrategy with
             {
-                var newMove = currMove.BuyExtra(buyableRobot);
-                var newResources = currStrategy.Resources.Buy(buyableRobot, blueprint);
-                var newStrategy = currStrategy with
-                {
-                    Moves = (round == 1 
-                        ? currStrategy.Moves.Concat(new[] { (newMove, newResources.Minutes) }) 
-                        : currStrategy.Moves.SkipLast(1).Concat(new[] { (newMove, newResources.Minutes) })).ToList(),
-                    Resources = newResources
-                };
-
-                buyingStrategies.Add(newStrategy);
-                stack.Push((newMove, newStrategy));
+                Moves = currStrategy.Moves.Concat(new[] { (newMove, newResources.Minutes) }).ToList(),
+                Resources = newResources
             };
 
-            round += 1;
-        }
+            buyingStrategies.Add(newStrategy);
+        };
+
+        var result = buyingStrategies;
         
-        var result = buyingStrategies.GroupBy(s => s.LastMoveKey()).Select(group => group.First()); // Remove duplicate moves
-
-        result = PickMaximizeStrategies(result);
-
         var num = result.Count();
         if (num >= 50)
         {
@@ -165,30 +151,14 @@ record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources)
             Console.WriteLine($"{strategy}\n");
             foreach (var bs in result)
             {
-                Console.WriteLine($"> {bs.Moves.Last().Item1}");                
+                Console.WriteLine($"> {bs.Moves.Last().Item1}");
             }
         }
-        
+
         return result;
     }
 
-    static IEnumerable<Strategy> PickMaximizeStrategies(IEnumerable<Strategy> strategies)
-    {
-        var strategiesList = strategies.ToList();
-
-        bool PartiallyBetterExists(Strategy strat) =>        
-            strategiesList.Any(item => item.Moves.Last().Item1.PartiallyBetterThan(strat.Moves.Last().Item1));
-
-        foreach (var strat in strategiesList)
-        {
-            if (!PartiallyBetterExists(strat))
-                yield return strat;  
-        }
-    }
-
     public static Strategy Empty = new Strategy(new List<(Move, int)>(), Resources.StartResources);
-
-    public string LastMoveKey() => Moves.Last().Item1.CreateKey();
 }
 
 record struct Move(int BuyOreRobots, int BuyClayRobots, int BuyObsidianRobots, int BuyGeodeRobots)
@@ -203,29 +173,6 @@ record struct Move(int BuyOreRobots, int BuyClayRobots, int BuyObsidianRobots, i
             Robot.Obsidian => this with { BuyObsidianRobots = BuyObsidianRobots + 1 },
             _ => this with { BuyGeodeRobots = BuyGeodeRobots + 1 },
         };
-
-    public string CreateKey()
-    {
-        var parts = new[] {
-                ("Ore", BuyOreRobots),
-                ("Cly", BuyClayRobots),
-                ("Obs", BuyObsidianRobots),
-                ("Geo", BuyGeodeRobots)
-            }
-        .Where(buy => buy.Item2 > 0)
-        .Select(buy => $"{buy.Item1}({buy.Item2})");
-
-        return string.Join("|", parts);
-    }
-
-    public bool PartiallyBetterThan(Move other)
-    {
-        return BuyOreRobots >= other.BuyOreRobots 
-            && BuyClayRobots >= other.BuyClayRobots
-            && BuyObsidianRobots >= other.BuyObsidianRobots
-            && BuyGeodeRobots >= other.BuyGeodeRobots
-            && !other.Equals(this);
-    }
 }
 
 record struct Resources(int Minutes, int Ore, int Clay, int Obsidian, int Geodes, int OreRobots, int ClayRobots, int ObsidianRobots, int GeodeRobots)
