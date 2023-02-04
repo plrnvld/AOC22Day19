@@ -8,7 +8,7 @@ class Program
     public static void Main(string[] args)
     {
         // SmallExample take(1) with MaxMinutes 9 gives 457M options (and counting...)
-        foreach (var blueprint in ReadBlueprints("SmallExample.txt").Take(1)) // ################
+        foreach (var blueprint in ReadBlueprints("Example.txt").Take(1)) // ################
         {
             Console.WriteLine($"*** Blueprint ***\n{blueprint}\n");
 
@@ -27,7 +27,7 @@ class Program
 
 class BlueprintOptimizer
 {
-    const int MaxMinutes = 12;
+    const int MaxMinutes = 20;
     Blueprint blueprint;
 
     public BlueprintOptimizer(Blueprint blueprint) => this.blueprint = blueprint;
@@ -45,7 +45,7 @@ class BlueprintOptimizer
         {
             step += 1;
 
-            const int div = 10_000;
+            const int div = 100_000;
             const double milli = 1_000_000;
             if (step % div == 0)
                 Console.WriteLine($"> [{step / milli}M] current # is {stack.Count}");
@@ -89,6 +89,9 @@ record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources)
 
     public bool CanStillBeatRecord(int currRecord, int maxMinutes, Blueprint blueprint)
     {
+        return true;
+
+        /*
         var nextRecord = currRecord + 1;
         var stepsRemaining = maxMinutes - Resources.Minutes;
 
@@ -109,6 +112,7 @@ record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources)
             (Resources.Obsidian - stepsRemaining * Resources.ObsidianRobots) / blueprint.GeodeRobotObsidianPrice +
             (Resources.Clay - stepsRemaining * Resources.ClayRobots) / (blueprint.GeodeRobotObsidianPrice * blueprint.ObsidianRobotClayPrice)
             >= nextRecord;
+        */
     }
 
     static IEnumerable<Strategy> TryBuyingRobots(Strategy strategy, Blueprint blueprint)
@@ -141,12 +145,43 @@ record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources)
             // Console.Write(".");
         }
         
-        return buyingStrategies.GroupBy(s => s.LastMoveKey).Select(group => group.First()); // Remove duplicate moves
+        var result = buyingStrategies.GroupBy(s => s.LastMoveKey()).Select(group => group.First()); // Remove duplicate moves
+
+        result = PickMaximizeStrategies(result);
+
+        var num = result.Count();
+        if (num >= 50)
+        {
+            Console.WriteLine($"\nBuy strategies: {num}");
+            Console.WriteLine($"{strategy}\n");
+            foreach (var bs in buyingStrategies)
+            {
+                Console.WriteLine($"> {bs.Moves.Last().Item1}");                
+            }
+        }
+        
+        return result;
+    }
+
+    static IEnumerable<Strategy> PickMaximizeStrategies(IEnumerable<Strategy> strategies)
+    {
+        var strategiesList = strategies.ToList();
+
+        bool PartiallyBetterExists(Strategy strat)
+        {
+            return strategiesList.Any(item => item.Moves.Last().Item1.PartiallyBetterThan(strat.Moves.Last().Item1));
+        }
+
+        foreach (var strat in strategiesList)
+        {
+            if (!PartiallyBetterExists(strat))
+                yield return strat;  
+        }
     }
 
     public static Strategy Empty = new Strategy(new List<(Move, int)>(), Resources.StartResources);
 
-    public string LastMoveKey => Moves.Last().Item1.CreateKey();
+    public string LastMoveKey() => Moves.Last().Item1.CreateKey();
 }
 
 record struct Move(int BuyOreRobots, int BuyClayRobots, int BuyObsidianRobots, int BuyGeodeRobots)
@@ -174,6 +209,15 @@ record struct Move(int BuyOreRobots, int BuyClayRobots, int BuyObsidianRobots, i
         .Select(buy => $"{buy.Item1}({buy.Item2})");
 
         return string.Join("|", parts);
+    }
+
+    public bool PartiallyBetterThan(Move other)
+    {
+        return BuyOreRobots >= other.BuyOreRobots 
+            && BuyClayRobots >= other.BuyClayRobots
+            && BuyObsidianRobots >= other.BuyObsidianRobots
+            && BuyGeodeRobots >= other.BuyGeodeRobots
+            && !other.Equals(this);
     }
 }
 
