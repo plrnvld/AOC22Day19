@@ -60,6 +60,11 @@ class BlueprintOptimizer
                     {
                         Console.WriteLine($"! Best result now {movesList.Resources.Geodes}");
                         best = movesList;
+
+                        if (movesList.Resources.Geodes == 10)
+                        {
+                            Console.WriteLine(string.Join("\n  ", best.Moves));
+                        }
                     }
 
                     stack.Push(movesList);
@@ -89,34 +94,27 @@ record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources)
 
     public bool CanStillBeatRecord(int currRecord, int maxMinutes, Blueprint blueprint)
     {
-        if (Resources.Minutes == maxMinutes - 4 && Resources.GeodeRobots == 0)
-            return false;
-
-        
-        return true;
-
-        /*
-        var nextRecord = currRecord + 1;
         var stepsRemaining = maxMinutes - Resources.Minutes;
 
-        var directGeodeOutput = Resources.Geodes + Resources.GeodeRobots * stepsRemaining;
-        if (directGeodeOutput >= nextRecord)
-            return true;
+        if (stepsRemaining == 1 && Resources.Geodes + Resources.GeodeRobots <= currRecord)
+            return false;
 
-        if (stepsRemaining >= maxMinutes - 10)
-            return true;
+        if (stepsRemaining == 2 && Resources.Geodes + 2 * Resources.GeodeRobots <= currRecord && Resources.Obsidian < blueprint.GeodeRobotObsidianPrice)
+            return false;
 
-        if (Resources.Geodes >= nextRecord)
-            return true;
+        if (stepsRemaining == 3 && Resources.Geodes + 3 * Resources.GeodeRobots <= currRecord && Resources.Obsidian + Resources.ObsidianRobots < blueprint.GeodeRobotObsidianPrice)
+            return false;
+        
+        if (stepsRemaining == 4 && Resources.GeodeRobots == 0)
+            return false;
 
-        if (stepsRemaining == 1) // Buying robots won't help you        
-            return Resources.Geodes + Resources.GeodeRobots >= nextRecord;
+        if (Resources.Clay > blueprint.ObsidianRobotClayPrice + Resources.ClayRobots)
+            return false;
 
-        return (Resources.Geodes - stepsRemaining * Resources.GeodeRobots) +
-            (Resources.Obsidian - stepsRemaining * Resources.ObsidianRobots) / blueprint.GeodeRobotObsidianPrice +
-            (Resources.Clay - stepsRemaining * Resources.ClayRobots) / (blueprint.GeodeRobotObsidianPrice * blueprint.ObsidianRobotClayPrice)
-            >= nextRecord;
-        */
+        if (Resources.Obsidian > blueprint.GeodeRobotObsidianPrice + Resources.ObsidianRobots)
+            return false;
+        
+        return true;
     }
 
     static IEnumerable<Strategy> TryBuyingRobots(Strategy strategy, Blueprint blueprint)
@@ -125,8 +123,6 @@ record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources)
         var stack = new Stack<(Move, Strategy)>();
         stack.Push((new Move(), strategy));
 
-        // Console.WriteLine("Loop start");
-        
         while (stack.Any())
         {
             var (currMove, currStrategy) = stack.Pop();
@@ -145,8 +141,6 @@ record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources)
                 buyingStrategies.Add(newStrategy);
                 stack.Push((newMove, newStrategy));
             };
-
-            // Console.Write(".");
         }
         
         var result = buyingStrategies.GroupBy(s => s.LastMoveKey()).Select(group => group.First()); // Remove duplicate moves
@@ -158,7 +152,7 @@ record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources)
         {
             Console.WriteLine($"\nBuy strategies: {num}");
             Console.WriteLine($"{strategy}\n");
-            foreach (var bs in buyingStrategies)
+            foreach (var bs in result)
             {
                 Console.WriteLine($"> {bs.Moves.Last().Item1}");                
             }
@@ -171,10 +165,8 @@ record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources)
     {
         var strategiesList = strategies.ToList();
 
-        bool PartiallyBetterExists(Strategy strat)
-        {
-            return strategiesList.Any(item => item.Moves.Last().Item1.PartiallyBetterThan(strat.Moves.Last().Item1));
-        }
+        bool PartiallyBetterExists(Strategy strat) =>        
+            strategiesList.Any(item => item.Moves.Last().Item1.PartiallyBetterThan(strat.Moves.Last().Item1));
 
         foreach (var strat in strategiesList)
         {
