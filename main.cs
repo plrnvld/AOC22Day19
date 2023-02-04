@@ -45,8 +45,8 @@ class BlueprintOptimizer
         {
             step += 1;
 
-            const int div = 100_000;
-            const int milli = 1_000_000;
+            const int div = 10_000;
+            const double milli = 1_000_000;
             if (step % div == 0)
                 Console.WriteLine($"> [{step / milli}M] current # is {stack.Count}");
 
