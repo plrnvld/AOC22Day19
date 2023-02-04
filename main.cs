@@ -84,9 +84,7 @@ record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources)
 
         var nextMovesWithoutBuying = new[] { this with { Resources = Resources.Next() } };
 
-        var newBoughtRobotsMoves = TryBuyingRobots(nextMovesWithoutBuying, blueprint);
-
-        return newBoughtRobotsMoves.Concat(nextMovesWithoutBuying);
+        return TryBuyingRobots(nextMovesWithoutBuying, blueprint).Concat(nextMovesWithoutBuying);
     }
 
     public bool CanStillBeatRecord(int currRecord, int maxMinutes, Blueprint blueprint)
@@ -132,22 +130,20 @@ record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources)
                 Moves = strategy.Moves.Concat(new[] { buyRobotMove }).ToList(),
                 Resources = strategy.Resources.Buy(newRobot, blueprint)
             };
-            
+
             var allStrategies = new[] { newStrategy }.Concat(TryBuyingRobots(newStrategy, buyRobotMove.Item1, blueprint));
 
-            var groups = allStrategies.GroupBy(s => s.LastMoveKey); // Remove duplicate moves
-
-            return groups.Select(group => group.First());
+            return allStrategies.GroupBy(s => s.LastMoveKey).Select(group => group.First()); // Remove duplicate moves
         });
     }
 
     public static Strategy Empty = new Strategy(new List<(Move, int)>(), Resources.StartResources);
 
-    public string LastMoveKey => Moves.Last().Item1.Key();
+    public string LastMoveKey => Moves.Last().Item1.CreateKey();
 }
 
 record struct Move(int BuyOreRobots, int BuyClayRobots, int BuyObsidianRobots, int BuyGeodeRobots)
-{
+{    
     public static Move Buy(Robot robot) => new Move().BuyExtra(robot);
 
     public Move BuyExtra(Robot robot) =>
@@ -159,7 +155,7 @@ record struct Move(int BuyOreRobots, int BuyClayRobots, int BuyObsidianRobots, i
             _ => this with { BuyGeodeRobots = BuyGeodeRobots + 1 },
         };
 
-    public string Key()
+    public string CreateKey()
     {
         var parts = new[] {
                 ("Ore", BuyOreRobots),
@@ -167,8 +163,8 @@ record struct Move(int BuyOreRobots, int BuyClayRobots, int BuyObsidianRobots, i
                 ("Obs", BuyObsidianRobots),
                 ("Geo", BuyGeodeRobots)
             }
-            .Where(buy => buy.Item2 > 0)
-            .Select(buy => $"{buy.Item1}({buy.Item2})");
+        .Where(buy => buy.Item2 > 0)
+        .Select(buy => $"{buy.Item1}({buy.Item2})");
 
         return string.Join("|", parts);
     }
