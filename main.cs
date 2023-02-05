@@ -116,7 +116,7 @@ record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources,
             return false;
 
         var maxOrePrice = new[] { blueprint.GeodeRobotOrePrice, blueprint.ObsidianRobotOrePrice, blueprint.ClayRobotOrePrice }.Max();
-        if (Resources.Ore > maxOrePrice * 4)
+        if (Resources.Ore > maxOrePrice * 2)
             return false;
 
         return true;
@@ -125,56 +125,30 @@ record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources,
     static IEnumerable<Strategy> TryBuyingRobots(Strategy strategy, Blueprint blueprint)
     {
         var buyingStrategies = new List<Strategy>();
-        
-        var (currMove, currStrategy) = (new Move(), strategy);
-        var buyableRobots = allRobots.Where(robot => currStrategy.PrevResources.CanBuy(robot, blueprint));
+
+        var buyableRobots = allRobots.Where(robot => strategy.PrevResources.CanBuy(robot, blueprint));
 
         foreach (var buyableRobot in buyableRobots)
         {
-            var newMove = currMove.BuyExtra(buyableRobot);
-            var newResources = currStrategy.Resources.Buy(buyableRobot, blueprint);
-            var newStrategy = currStrategy with
+            var newMove = new Move(buyableRobot);
+            var newResources = strategy.Resources.Buy(buyableRobot, blueprint);
+            var newStrategy = strategy with
             {
-                Moves = currStrategy.Moves.Concat(new[] { (newMove, newResources.Minutes) }).ToList(),
+                Moves = strategy.Moves.Concat(new[] { (newMove, newResources.Minutes) }).ToList(),
                 Resources = newResources,
-                PrevResources = strategy.Resources
+                PrevResources = strategy.PrevResources
             };
 
             buyingStrategies.Add(newStrategy);
         };
 
-        var result = buyingStrategies;
-        
-        var num = result.Count();
-        if (num >= 50)
-        {
-            Console.WriteLine($"\nBuy strategies: {num}");
-            Console.WriteLine($"{strategy}\n");
-            foreach (var bs in result)
-            {
-                Console.WriteLine($"> {bs.Moves.Last().Item1}");
-            }
-        }
-
-        return result;
+        return buyingStrategies;
     }
 
     public static Strategy Empty = new Strategy(new List<(Move, int)>(), Resources.StartResources, Resources.StartResources);
 }
 
-record struct Move(int BuyOreRobots, int BuyClayRobots, int BuyObsidianRobots, int BuyGeodeRobots)
-{
-    public static Move Buy(Robot robot) => new Move().BuyExtra(robot);
-
-    public Move BuyExtra(Robot robot) =>
-        robot switch
-        {
-            Robot.Ore => this with { BuyOreRobots = BuyOreRobots + 1 },
-            Robot.Clay => this with { BuyClayRobots = BuyClayRobots + 1 },
-            Robot.Obsidian => this with { BuyObsidianRobots = BuyObsidianRobots + 1 },
-            _ => this with { BuyGeodeRobots = BuyGeodeRobots + 1 },
-        };
-}
+record struct Move(Robot BuyRobot);
 
 record struct Resources(int Minutes, int Ore, int Clay, int Obsidian, int Geodes, int OreRobots, int ClayRobots, int ObsidianRobots, int GeodeRobots)
 {
