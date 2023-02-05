@@ -106,13 +106,13 @@ record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources,
         if (stepsRemaining == 3 && Resources.Geodes + 3 * Resources.GeodeRobots <= currRecord && Resources.Obsidian + Resources.ObsidianRobots < blueprint.GeodeRobotObsidianPrice)
             return false;
 
-        //if (stepsRemaining == 4 && Resources.GeodeRobots == 0)
-        //     return false;
+        if (stepsRemaining == 4 && Resources.GeodeRobots == 0)
+             return false;
 
-        if (Resources.Clay > blueprint.ObsidianRobotClayPrice + Resources.ClayRobots + 5)
+        if (Resources.Clay > blueprint.ObsidianRobotClayPrice + Resources.ClayRobots + 20)
             return false;
 
-        if (Resources.Obsidian > blueprint.GeodeRobotObsidianPrice + Resources.ObsidianRobots + 5)
+        if (Resources.Obsidian > blueprint.GeodeRobotObsidianPrice + Resources.ObsidianRobots + 20)
             return false;
 
         var maxOrePrice = new[] { blueprint.GeodeRobotOrePrice, blueprint.ObsidianRobotOrePrice, blueprint.ClayRobotOrePrice }.Max();
@@ -145,7 +145,7 @@ record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources,
         return buyingStrategies;
     }
 
-    public static Strategy Empty = new Strategy(new List<(Move, int)>(), Resources.StartResources, Resources.StartResources);
+    public static Strategy Empty = new Strategy(new List<(Move, int)>(), Resources: Resources.StartResources, PrevResources: Resources.EmptyResources);
 }
 
 record struct Move(Robot BuyRobot);
@@ -182,7 +182,7 @@ record struct Resources(int Minutes, int Ore, int Clay, int Obsidian, int Geodes
         };
 
     public bool CanBuy(Robot robot, Blueprint blueprint) =>
-        robot switch // ################## Should check with previous resources
+        robot switch
         {
             Robot.Ore => Ore >= blueprint.OreRobotOrePrice,
             Robot.Clay => Ore >= blueprint.ClayRobotOrePrice,
@@ -191,6 +191,7 @@ record struct Resources(int Minutes, int Ore, int Clay, int Obsidian, int Geodes
         };
 
     public static Resources StartResources = new Resources(0, 0, 0, 0, 0, OreRobots: 1, 0, 0, 0);
+    public static Resources EmptyResources = new ();
 }
 
 enum Robot
