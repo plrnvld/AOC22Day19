@@ -8,9 +8,9 @@ class Program
 {
     public static void Main(string[] args)
     {
-        var quality = 0;
+        var score = 1;
 
-        foreach (var blueprint in ReadBlueprints("Input.txt")) // ################
+        foreach (var blueprint in ReadBlueprints("Input.txt").Skip(2).Take(1)) // ################
         {
             Console.WriteLine($"*** Blueprint ***\n{blueprint}\n");
 
@@ -23,7 +23,7 @@ class Program
 
             timer.Stop();
 
-            quality += best.Resources.Geodes * blueprint.Num;
+            score *= best.Resources.Geodes;
 
             Console.WriteLine($"\nBest moves have {best.Resources.Geodes} geodes:\n\n{best}\n");
             Console.WriteLine(string.Join("\n", best.Moves));
@@ -31,8 +31,7 @@ class Program
             Console.WriteLine($"\nCalculation took {timer.Elapsed}");
         }
 
-
-        Console.WriteLine($"\n\n!!!Final quality {quality}");
+        Console.WriteLine($"\n\n!!!Final score {score}");
     }
 
     static IEnumerable<Blueprint> ReadBlueprints(string file) =>
@@ -41,7 +40,7 @@ class Program
 
 class BlueprintOptimizer
 {
-    const int MaxMinutes = 24;
+    const int MaxMinutes = 32;
     Blueprint blueprint;
 
     public BlueprintOptimizer(Blueprint blueprint) => this.blueprint = blueprint;
@@ -59,7 +58,7 @@ class BlueprintOptimizer
         {
             step += 1;
 
-            const int div = 20_000_000;
+            const int div = 100_000_000;
             const double milli = 1_000_000;
             if (step % div == 0)
                 Console.WriteLine($"  [{step / milli}M] current stack size: {stack.Count}");
@@ -88,6 +87,7 @@ class BlueprintOptimizer
 record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources, Resources PrevResources)
 {
     static Robot[] allRobots = new Robot[] { Robot.Geode, Robot.Obsidian, Robot.Clay, Robot.Ore };
+    static Robot[] allRobotsReversed = new Robot[] { Robot.Ore, Robot.Clay, Robot.Obsidian, Robot.Geode };
     static Robot[] oreClay = new Robot[] { Robot.Clay, Robot.Ore };
     static Robot[] oreClayObsidian = new Robot[] { Robot.Obsidian, Robot.Clay, Robot.Ore };
     readonly IEnumerable<Strategy> noStrategies = Enumerable.Empty<Strategy>();
@@ -99,7 +99,7 @@ record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources,
 
         var nextMovesWithoutBuying = this with { Resources = Resources.Next(), PrevResources = Resources };
 
-        return TryBuyingRobots(nextMovesWithoutBuying, blueprint).Concat(new[] { nextMovesWithoutBuying });
+        return TryBuyingRobots(nextMovesWithoutBuying, blueprint, maxMinutes).Concat(new[] { nextMovesWithoutBuying });
     }
 
     public bool CanStillBeatRecord(int currRecord, int maxMinutes, Blueprint blueprint)
@@ -124,16 +124,16 @@ record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources,
                 break;
         }
         
-        // if (stepsRemaining == 4 && Resources.GeodeRobots == 0)
+        // if (stepsRemaining == 10 && Resources.GeodeRobots == 0)
         //       return false;
 
-        if (Resources.Clay > blueprint.ObsidianRobotClayPrice + Resources.ClayRobots + 20)
+        if (Resources.Clay > 50)
             return false;
 
-        if (Resources.Obsidian > blueprint.GeodeRobotObsidianPrice + Resources.ObsidianRobots + 20)
+        if (Resources.Obsidian > 100)
             return false;
 
-        if (Resources.Ore > 20) // ############## Was 20
+        if (Resources.Ore > 30) // ############## Was 20
             return false;
 
         // Example(2) Got the answer after 200M steps with 30,30,15
@@ -143,9 +143,12 @@ record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources,
         return true;
     }
 
-    static IEnumerable<Strategy> TryBuyingRobots(Strategy strategy, Blueprint blueprint)
+    static IEnumerable<Strategy> TryBuyingRobots(Strategy strategy, Blueprint blueprint, int maxMinutes)
     {
-        var buyableRobots = allRobots.Where(robot => strategy.PrevResources.CanBuy(robot, blueprint));
+        var robotsForSale = strategy.Resources.Minutes * 2 > maxMinutes 
+            ? allRobots 
+            : allRobotsReversed;
+        var buyableRobots = robotsForSale.Where(robot => strategy.PrevResources.CanBuy(robot, blueprint));
 
         foreach (var buyableRobot in buyableRobots)
         {
@@ -229,5 +232,16 @@ record struct Blueprint(int Num, int OreRobotOrePrice, int ClayRobotOrePrice, in
     }
 }
 
+// Blueprint 1 has 29 geodes (checking finished 1.8B with 50 Cly, 100 Obs, 30 Ore)
+// Blueprint 2 has 5 geodes?? (checking 3.1B with 100 Cly, 100 Obs, 30 Ore)
+// Blueprint 3 has 12 geodes??? (checking 3.4B with 50 Cly, 100 Obs, 30 Ore)
 
-// 1522 too low
+// 1450 too low
+// 1740 too low
+// 1885 (29 X 5 X 13) not it, because 1914 too low
+// 1914 (29 x 6 x 11) too low
+// 2520 (30 x 7 x 12) not right
+// 2436 (29 x 7 x 12) not right
+// 2030 (29 x 5 x 14) not right
+// 2175 (29 x 5 x 15) not right
+// 1920 (32 x 5 x 12) not right
