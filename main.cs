@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 
@@ -7,18 +8,31 @@ class Program
 {
     public static void Main(string[] args)
     {
-        // SmallExample take(1) with MaxMinutes 9 gives 457M options (and counting...)
-        foreach (var blueprint in ReadBlueprints("Example.txt").Take(1)) // ################
+        var quality = 0;
+
+        foreach (var blueprint in ReadBlueprints("Input.txt")) // ################
         {
             Console.WriteLine($"*** Blueprint ***\n{blueprint}\n");
 
             var blueprintOptimizer = new BlueprintOptimizer(blueprint);
+
+            var timer = new Stopwatch();
+            timer.Start();
+
             var best = blueprintOptimizer.GetBestStrategy();
 
+            timer.Stop();
+
+            quality += best.Resources.Geodes * blueprint.Num;
+
             Console.WriteLine($"\nBest moves have {best.Resources.Geodes} geodes:\n\n{best}\n");
-            // Console.WriteLine($"\nBest moves have {best.Resources.Ore} ore:\n\n{best}\n");
             Console.WriteLine(string.Join("\n", best.Moves));
+
+            Console.WriteLine($"\nCalculation took {timer.Elapsed}");
         }
+
+
+        Console.WriteLine($"\n\n!!!Final quality {quality}");
     }
 
     static IEnumerable<Blueprint> ReadBlueprints(string file) =>
@@ -45,30 +59,24 @@ class BlueprintOptimizer
         {
             step += 1;
 
-            const int div = 100_000;
+            const int div = 20_000_000;
             const double milli = 1_000_000;
             if (step % div == 0)
-                Console.WriteLine($"> [{step / milli}M] current # is {stack.Count}");
+                Console.WriteLine($"  [{step / milli}M] current stack size: {stack.Count}");
 
-            var newMovesLists = stack.Pop().StepMinute(blueprint, MaxMinutes).ToList();
+            var strategies = stack.Pop().StepMinute(blueprint, MaxMinutes);
 
-            foreach (var movesList in newMovesLists)
+            foreach (var strategy in strategies)
             {
-                if (movesList.CanStillBeatRecord(best.Resources.Geodes + 1, MaxMinutes, blueprint))
+                if (strategy.CanStillBeatRecord(best.Resources.Geodes, MaxMinutes, blueprint))
                 {
-                    if (movesList.Resources.Geodes > best.Resources.Geodes)
+                    if (strategy.Resources.Minutes == MaxMinutes && strategy.Resources.Geodes > best.Resources.Geodes)
                     {
-                        Console.WriteLine($"! Best result now {movesList.Resources.Geodes}");
-                        best = movesList;
-
-                        if (best.Resources.Geodes is 11)
-                        {
-                            var movesTexts = best.Moves.Select(m => $"  [{m.Item2}] {m.Item1}");
-                            Console.WriteLine(string.Join("\n", movesTexts));
-                        }
+                        Console.WriteLine($"🚀 Best result now {strategy.Resources.Geodes}");
+                        best = strategy;
                     }
 
-                    stack.Push(movesList);
+                    stack.Push(strategy);
                 }
             }
         }
@@ -82,11 +90,12 @@ record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources,
     static Robot[] allRobots = new Robot[] { Robot.Geode, Robot.Obsidian, Robot.Clay, Robot.Ore };
     static Robot[] oreClay = new Robot[] { Robot.Clay, Robot.Ore };
     static Robot[] oreClayObsidian = new Robot[] { Robot.Obsidian, Robot.Clay, Robot.Ore };
+    readonly IEnumerable<Strategy> noStrategies = Enumerable.Empty<Strategy>();
 
     public IEnumerable<Strategy> StepMinute(Blueprint blueprint, int maxMinutes)
     {
         if (Resources.Minutes >= maxMinutes)
-            return Enumerable.Empty<Strategy>();
+            return noStrategies;
 
         var nextMovesWithoutBuying = this with { Resources = Resources.Next(), PrevResources = Resources };
 
@@ -97,17 +106,26 @@ record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources,
     {
         var stepsRemaining = maxMinutes - Resources.Minutes;
 
-        if (stepsRemaining == 1 && Resources.Geodes + Resources.GeodeRobots <= currRecord)
-            return false;
-
-        if (stepsRemaining == 2 && Resources.Geodes + 2 * Resources.GeodeRobots <= currRecord && Resources.Obsidian < blueprint.GeodeRobotObsidianPrice)
-            return false;
-
-        if (stepsRemaining == 3 && Resources.Geodes + 3 * Resources.GeodeRobots <= currRecord && Resources.Obsidian + Resources.ObsidianRobots < blueprint.GeodeRobotObsidianPrice)
-            return false;
-
-        if (stepsRemaining == 4 && Resources.GeodeRobots == 0)
-             return false;
+        switch (stepsRemaining)
+        {
+            case 1:
+                if (Resources.Geodes + Resources.GeodeRobots <= currRecord)
+                    return false;
+                break;
+            case 2:
+                if (Resources.Geodes + 2 * Resources.GeodeRobots <= currRecord && Resources.Obsidian < blueprint.GeodeRobotObsidianPrice)
+                    return false;
+                break;
+            case 3:
+                if (Resources.Geodes + 3 * Resources.GeodeRobots <= currRecord && Resources.Obsidian + Resources.ObsidianRobots < blueprint.GeodeRobotObsidianPrice)
+                    return false;
+                break;
+            default: 
+                break;
+        }
+        
+        // if (stepsRemaining == 4 && Resources.GeodeRobots == 0)
+        //       return false;
 
         if (Resources.Clay > blueprint.ObsidianRobotClayPrice + Resources.ClayRobots + 20)
             return false;
@@ -115,37 +133,35 @@ record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources,
         if (Resources.Obsidian > blueprint.GeodeRobotObsidianPrice + Resources.ObsidianRobots + 20)
             return false;
 
-        var maxOrePrice = new[] { blueprint.GeodeRobotOrePrice, blueprint.ObsidianRobotOrePrice, blueprint.ClayRobotOrePrice }.Max();
-        if (Resources.Ore > maxOrePrice * 2)
+        if (Resources.Ore > 20) // ############## Was 20
             return false;
 
+        // Example(2) Got the answer after 200M steps with 30,30,15
+        // Example(2) Got the answer after 74M steps with 10,30,15, took 8min44
+        // Example(2) Got the answer after ? steps with 10,10,15, took ?
+        
         return true;
     }
 
     static IEnumerable<Strategy> TryBuyingRobots(Strategy strategy, Blueprint blueprint)
     {
-        var buyingStrategies = new List<Strategy>();
-
         var buyableRobots = allRobots.Where(robot => strategy.PrevResources.CanBuy(robot, blueprint));
 
         foreach (var buyableRobot in buyableRobots)
         {
-            var newMove = new Move(buyableRobot);
             var newResources = strategy.Resources.Buy(buyableRobot, blueprint);
-            var newStrategy = strategy with
+            var newMoves = new List<(Move move, int minute)>(strategy.Moves.Count + 1);
+            newMoves.AddRange(strategy.Moves);
+            newMoves.Add((new Move(buyableRobot), newResources.Minutes));
+            yield return strategy with
             {
-                Moves = strategy.Moves.Concat(new[] { (newMove, newResources.Minutes) }).ToList(),
-                Resources = newResources,
-                PrevResources = strategy.PrevResources
+                Moves = newMoves,
+                Resources = newResources
             };
-
-            buyingStrategies.Add(newStrategy);
         };
-
-        return buyingStrategies;
     }
 
-    public static Strategy Empty = new Strategy(new List<(Move, int)>(), Resources: Resources.StartResources, PrevResources: Resources.EmptyResources);
+    public static Strategy Empty = new(new List<(Move, int)>(), Resources: Resources.StartResources, PrevResources: Resources.EmptyResources);
 }
 
 record struct Move(Robot BuyRobot);
@@ -190,8 +206,8 @@ record struct Resources(int Minutes, int Ore, int Clay, int Obsidian, int Geodes
             _ => Ore >= blueprint.GeodeRobotOrePrice && Obsidian >= blueprint.GeodeRobotObsidianPrice,
         };
 
-    public static Resources StartResources = new Resources(0, 0, 0, 0, 0, OreRobots: 1, 0, 0, 0);
-    public static Resources EmptyResources = new ();
+    public static Resources StartResources = new(0, 0, 0, 0, 0, OreRobots: 1, 0, 0, 0);
+    public static Resources EmptyResources = new();
 }
 
 enum Robot
@@ -212,3 +228,6 @@ record struct Blueprint(int Num, int OreRobotOrePrice, int ClayRobotOrePrice, in
         return new Blueprint(int.Parse(words[1][..^1]), Word(6), Word(12), Word(18), Word(21), Word(27), Word(30));
     }
 }
+
+
+// 1522 too low
