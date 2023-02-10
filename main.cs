@@ -8,9 +8,9 @@ class Program
 {
     public static void Main(string[] args)
     {
-        var score = 1;
+        var score = 0;
 
-        foreach (var blueprint in ReadBlueprints("Input.txt").Skip(0).Take(1)) // ################
+        foreach (var blueprint in ReadBlueprints("Input.txt")) // ################
         {
             Console.WriteLine($"*** Blueprint ***\n{blueprint}\n");
 
@@ -23,7 +23,7 @@ class Program
 
             timer.Stop();
 
-            score *= best.Resources.Geodes;
+            score += best.Resources.Geodes * blueprint.Num;
 
             Console.WriteLine($"\nBest moves have {best.Resources.Geodes} geodes:\n\n{best}\n");
             Console.WriteLine(string.Join("\n", best.Moves));
@@ -94,7 +94,7 @@ record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources,
 
     public IEnumerable<Strategy> StepMinute(Blueprint blueprint, int maxMinutes)
     {
-        if (Resources.Minutes == maxMinutes - 5) // Endgame time
+        if (Resources.Minutes == maxMinutes - 4) // Endgame time
             return new[] { GetEndGameStrategy(this, blueprint, maxMinutes) };
 
         if (Resources.Minutes >= maxMinutes)
@@ -109,41 +109,30 @@ record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources,
         strategy with { Resources = strategy.Resources.Next(), PrevResources = strategy.Resources };
 
 
-    static Strategy GetEndGameStrategy(Strategy nextNMinus5, Blueprint blueprint, int maxMinutes)
+    static Strategy GetEndGameStrategy(Strategy strategy, Blueprint blueprint, int maxMinutes)
     {
-        // Minutes is 'maxMinutes - 4'
-        if (nextNMinus5.Resources.Minutes + 5 != maxMinutes)
+        var steps = 4;
+        
+        // Minutes is 'maxMinutes - steps'
+        if (strategy.Resources.Minutes + steps != maxMinutes)
             throw new Exception("Weird!");
 
-        // MaxMinutes - 4
-        var nextNMinus4 = GetNextStrategyWithoutBuying(nextNMinus5);
-        if (nextNMinus4.PrevResources.CanBuy(Robot.Geode, blueprint))
-            nextNMinus4 = BuyRobot(nextNMinus4, Robot.Geode, blueprint);
-        else if (nextNMinus4.Resources.Obsidian + 3 * nextNMinus4.Resources.ObsidianRobots < blueprint.GeodeRobotObsidianPrice && nextNMinus4.PrevResources.CanBuy(Robot.Obsidian, blueprint)) // #######################
-            nextNMinus4 = BuyRobot(nextNMinus4, Robot.Obsidian, blueprint);
-        else if (nextNMinus4.Resources.Ore + 3 * nextNMinus4.Resources.OreRobots < blueprint.GeodeRobotOrePrice && nextNMinus4.PrevResources.CanBuy(Robot.Ore, blueprint))
-            nextNMinus4 = BuyRobot(nextNMinus4, Robot.Ore, blueprint);
+        var next = strategy;
+        
+        for (var i = 0; i < steps - 2; i++)
+        {
+            next = GetNextStrategyWithoutBuying(next);
 
-        // MaxMinutes - 3
-        var nextNMinus3 = GetNextStrategyWithoutBuying(nextNMinus4);
-        if (nextNMinus3.PrevResources.CanBuy(Robot.Geode, blueprint))
-            nextNMinus3 = BuyRobot(nextNMinus3, Robot.Geode, blueprint);
-        else if (nextNMinus3.Resources.Obsidian + 2 * nextNMinus3.Resources.ObsidianRobots < blueprint.GeodeRobotObsidianPrice && nextNMinus3.PrevResources.CanBuy(Robot.Obsidian, blueprint)) // #######################
-            nextNMinus3 = BuyRobot(nextNMinus3, Robot.Obsidian, blueprint);
-        else if (nextNMinus3.Resources.Ore + 2 * nextNMinus3.Resources.OreRobots < blueprint.GeodeRobotOrePrice && nextNMinus3.PrevResources.CanBuy(Robot.Ore, blueprint))
-            nextNMinus3 = BuyRobot(nextNMinus3, Robot.Ore, blueprint);
-
-        // MaxMinutes - 2
-        var nextNMinus2 = GetNextStrategyWithoutBuying(nextNMinus3);
-        if (nextNMinus2.PrevResources.CanBuy(Robot.Geode, blueprint))
-            nextNMinus2 = BuyRobot(nextNMinus2, Robot.Geode, blueprint);
-        else if (nextNMinus2.Resources.Obsidian + nextNMinus2.Resources.ObsidianRobots < blueprint.GeodeRobotObsidianPrice && nextNMinus2.PrevResources.CanBuy(Robot.Obsidian, blueprint)) // #######################
-            nextNMinus2 = BuyRobot(nextNMinus2, Robot.Obsidian, blueprint);
-        else if (nextNMinus2.Resources.Ore + nextNMinus2.Resources.OreRobots < blueprint.GeodeRobotOrePrice && nextNMinus2.PrevResources.CanBuy(Robot.Ore, blueprint))
-            nextNMinus2 = BuyRobot(nextNMinus2, Robot.Ore, blueprint);
+            if (next.PrevResources.CanBuy(Robot.Geode, blueprint))
+                next = BuyRobot(next, Robot.Geode, blueprint);
+            else if (next.Resources.Obsidian + (steps - 2 - i) * next.Resources.ObsidianRobots < blueprint.GeodeRobotObsidianPrice && next.PrevResources.CanBuy(Robot.Obsidian, blueprint)) // #######################
+                next = BuyRobot(next, Robot.Obsidian, blueprint);
+            else if (next.Resources.Ore + (steps - 2 - i) * next.Resources.OreRobots < blueprint.GeodeRobotOrePrice && next.PrevResources.CanBuy(Robot.Ore, blueprint))
+                next = BuyRobot(next, Robot.Ore, blueprint);
+        }
 
         // MaxMinutes - 1
-        var nextNMinus1 = GetNextStrategyWithoutBuying(nextNMinus2);
+        var nextNMinus1 = GetNextStrategyWithoutBuying(next);
         if (nextNMinus1.PrevResources.CanBuy(Robot.Geode, blueprint))
             nextNMinus1 = BuyRobot(nextNMinus1, Robot.Geode, blueprint);
 
@@ -173,20 +162,20 @@ record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources,
             default: 
                 break;
         }
+         */
        
         
         // if (stepsRemaining == 10 && Resources.GeodeRobots == 0)
         //       return false;
 
-        if (Resources.Clay > 50)
+        if (Resources.Clay > 30)
             return false;
 
-        if (Resources.Obsidian > 100)
+        if (Resources.Obsidian > 30)
             return false;
 
-        if (Resources.Ore > 30) // ############## Was 20
-            return false;
-         */
+        // if (Resources.Ore > 30) // ############## Was 20
+        //     return false;        
 
         // Example(2) Got the answer after 200M steps with 30,30,15
         // Example(2) Got the answer after 74M steps with 10,30,15, took 8min44
@@ -287,9 +276,9 @@ record struct Blueprint(int Num, int OreRobotOrePrice, int ClayRobotOrePrice, in
     }
 }
 
-// Blueprint 1 has 29 geodes (checking finished 1.8B with 50 Cly, 100 Obs, 30 Ore)
-// Blueprint 2 has 5 geodes?? (checking 3.1B with 100 Cly, 100 Obs, 30 Ore)
-// Blueprint 3 has 12 geodes??? (checking 3.4B with 50 Cly, 100 Obs, 30 Ore)
+// Blueprint 1 has 29 geodes (checking finished 1.8B with 50 Cly, 100 Obs, 30 Ore) (but with `if (stepsRemaining == 10` limitation)
+// Blueprint 2 has 10 geodes?? (checking 3.1B with 100 Cly, 100 Obs, 30 Ore)
+// Blueprint 3 has 16 geodes??? (checking 3.5B with 50 Cly, 100 Obs, 30 Ore)
 
 // 1450 too low
 // 1740 too low
@@ -300,3 +289,9 @@ record struct Blueprint(int Num, int OreRobotOrePrice, int ClayRobotOrePrice, in
 // 2030 (29 x 5 x 14) not right
 // 2175 (29 x 5 x 15) not right
 // 1920 (32 x 5 x 12) not right
+
+// 3480 (32 x 10 x 12) not right
+// 4640 (29 x 10 x 16) not right (guessed 22:46)
+// 4800 (30 x 10 x 16) not it (23:32)
+// 4960 (31 x 10 x 16) not it 23:51
+// 5120 (32 x 10 x 16) not it
