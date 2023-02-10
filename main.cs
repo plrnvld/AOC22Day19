@@ -10,7 +10,7 @@ class Program
     {
         var score = 1;
 
-        foreach (var blueprint in ReadBlueprints("Input.txt").Skip(2).Take(1)) // ################
+        foreach (var blueprint in ReadBlueprints("Input.txt").Skip(0).Take(1)) // ################
         {
             Console.WriteLine($"*** Blueprint ***\n{blueprint}\n");
 
@@ -40,7 +40,7 @@ class Program
 
 class BlueprintOptimizer
 {
-    const int MaxMinutes = 32;
+    const int MaxMinutes = 24;
     Blueprint blueprint;
 
     public BlueprintOptimizer(Blueprint blueprint) => this.blueprint = blueprint;
@@ -94,18 +94,68 @@ record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources,
 
     public IEnumerable<Strategy> StepMinute(Blueprint blueprint, int maxMinutes)
     {
+        if (Resources.Minutes == maxMinutes - 5) // Endgame time
+            return new[] { GetEndGameStrategy(this, blueprint, maxMinutes) };
+
         if (Resources.Minutes >= maxMinutes)
             return noStrategies;
 
-        var nextMovesWithoutBuying = this with { Resources = Resources.Next(), PrevResources = Resources };
+        var nextStrategyWithoutBuying = GetNextStrategyWithoutBuying(this);
 
-        return TryBuyingRobots(nextMovesWithoutBuying, blueprint, maxMinutes).Concat(new[] { nextMovesWithoutBuying });
+        return TryBuyingRobots(nextStrategyWithoutBuying, blueprint, maxMinutes).Concat(new[] { nextStrategyWithoutBuying });
+    }
+
+    static Strategy GetNextStrategyWithoutBuying(Strategy strategy) =>
+        strategy with { Resources = strategy.Resources.Next(), PrevResources = strategy.Resources };
+
+
+    static Strategy GetEndGameStrategy(Strategy nextNMinus5, Blueprint blueprint, int maxMinutes)
+    {
+        // Minutes is 'maxMinutes - 4'
+        if (nextNMinus5.Resources.Minutes + 5 != maxMinutes)
+            throw new Exception("Weird!");
+
+        // MaxMinutes - 4
+        var nextNMinus4 = GetNextStrategyWithoutBuying(nextNMinus5);
+        if (nextNMinus4.PrevResources.CanBuy(Robot.Geode, blueprint))
+            nextNMinus4 = BuyRobot(nextNMinus4, Robot.Geode, blueprint);
+        else if (nextNMinus4.Resources.Obsidian + 3 * nextNMinus4.Resources.ObsidianRobots < blueprint.GeodeRobotObsidianPrice && nextNMinus4.PrevResources.CanBuy(Robot.Obsidian, blueprint)) // #######################
+            nextNMinus4 = BuyRobot(nextNMinus4, Robot.Obsidian, blueprint);
+        else if (nextNMinus4.Resources.Ore + 3 * nextNMinus4.Resources.OreRobots < blueprint.GeodeRobotOrePrice && nextNMinus4.PrevResources.CanBuy(Robot.Ore, blueprint))
+            nextNMinus4 = BuyRobot(nextNMinus4, Robot.Ore, blueprint);
+
+        // MaxMinutes - 3
+        var nextNMinus3 = GetNextStrategyWithoutBuying(nextNMinus4);
+        if (nextNMinus3.PrevResources.CanBuy(Robot.Geode, blueprint))
+            nextNMinus3 = BuyRobot(nextNMinus3, Robot.Geode, blueprint);
+        else if (nextNMinus3.Resources.Obsidian + 2 * nextNMinus3.Resources.ObsidianRobots < blueprint.GeodeRobotObsidianPrice && nextNMinus3.PrevResources.CanBuy(Robot.Obsidian, blueprint)) // #######################
+            nextNMinus3 = BuyRobot(nextNMinus3, Robot.Obsidian, blueprint);
+        else if (nextNMinus3.Resources.Ore + 2 * nextNMinus3.Resources.OreRobots < blueprint.GeodeRobotOrePrice && nextNMinus3.PrevResources.CanBuy(Robot.Ore, blueprint))
+            nextNMinus3 = BuyRobot(nextNMinus3, Robot.Ore, blueprint);
+
+        // MaxMinutes - 2
+        var nextNMinus2 = GetNextStrategyWithoutBuying(nextNMinus3);
+        if (nextNMinus2.PrevResources.CanBuy(Robot.Geode, blueprint))
+            nextNMinus2 = BuyRobot(nextNMinus2, Robot.Geode, blueprint);
+        else if (nextNMinus2.Resources.Obsidian + nextNMinus2.Resources.ObsidianRobots < blueprint.GeodeRobotObsidianPrice && nextNMinus2.PrevResources.CanBuy(Robot.Obsidian, blueprint)) // #######################
+            nextNMinus2 = BuyRobot(nextNMinus2, Robot.Obsidian, blueprint);
+        else if (nextNMinus2.Resources.Ore + nextNMinus2.Resources.OreRobots < blueprint.GeodeRobotOrePrice && nextNMinus2.PrevResources.CanBuy(Robot.Ore, blueprint))
+            nextNMinus2 = BuyRobot(nextNMinus2, Robot.Ore, blueprint);
+
+        // MaxMinutes - 1
+        var nextNMinus1 = GetNextStrategyWithoutBuying(nextNMinus2);
+        if (nextNMinus1.PrevResources.CanBuy(Robot.Geode, blueprint))
+            nextNMinus1 = BuyRobot(nextNMinus1, Robot.Geode, blueprint);
+
+        // MaxMinutes
+        return GetNextStrategyWithoutBuying(nextNMinus1);
     }
 
     public bool CanStillBeatRecord(int currRecord, int maxMinutes, Blueprint blueprint)
     {
         var stepsRemaining = maxMinutes - Resources.Minutes;
 
+        /*
         switch (stepsRemaining)
         {
             case 1:
@@ -123,6 +173,7 @@ record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources,
             default: 
                 break;
         }
+       
         
         // if (stepsRemaining == 10 && Resources.GeodeRobots == 0)
         //       return false;
@@ -135,32 +186,36 @@ record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources,
 
         if (Resources.Ore > 30) // ############## Was 20
             return false;
+         */
 
         // Example(2) Got the answer after 200M steps with 30,30,15
         // Example(2) Got the answer after 74M steps with 10,30,15, took 8min44
         // Example(2) Got the answer after ? steps with 10,10,15, took ?
-        
+
         return true;
     }
 
     static IEnumerable<Strategy> TryBuyingRobots(Strategy strategy, Blueprint blueprint, int maxMinutes)
     {
-        var robotsForSale = strategy.Resources.Minutes * 2 > maxMinutes 
-            ? allRobots 
+        var robotsForSale = strategy.Resources.Minutes * 2 > maxMinutes
+            ? allRobots
             : allRobotsReversed;
         var buyableRobots = robotsForSale.Where(robot => strategy.PrevResources.CanBuy(robot, blueprint));
 
         foreach (var buyableRobot in buyableRobots)
+            yield return BuyRobot(strategy, buyableRobot, blueprint);
+    }
+
+    static Strategy BuyRobot(Strategy strategy, Robot robot, Blueprint blueprint)
+    {
+        var newResources = strategy.Resources.Buy(robot, blueprint);
+        var newMoves = new List<(Move move, int minute)>(strategy.Moves.Count + 1);
+        newMoves.AddRange(strategy.Moves);
+        newMoves.Add((new Move(robot), newResources.Minutes));
+        return strategy with
         {
-            var newResources = strategy.Resources.Buy(buyableRobot, blueprint);
-            var newMoves = new List<(Move move, int minute)>(strategy.Moves.Count + 1);
-            newMoves.AddRange(strategy.Moves);
-            newMoves.Add((new Move(buyableRobot), newResources.Minutes));
-            yield return strategy with
-            {
-                Moves = newMoves,
-                Resources = newResources
-            };
+            Moves = newMoves,
+            Resources = newResources
         };
     }
 
