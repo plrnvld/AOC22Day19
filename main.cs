@@ -23,10 +23,14 @@ class Program
 
             timer.Stop();
 
-            score += best.Resources.Geodes * blueprint.Num;
+            var n = blueprint.Num;
+            var g = best.Resources.Geodes;
+            Console.WriteLine($"\n***** ({n} * {g}) = {n * g} ! 🧶");
 
-            Console.WriteLine($"\nBest moves have {best.Resources.Geodes} geodes:\n\n{best}\n");
-            Console.WriteLine(string.Join("\n", best.Moves));
+            score += g * n;
+
+            // Console.WriteLine($"\nBest moves have {best.Resources.Geodes} geodes:\n\n{best}\n");
+            // Console.WriteLine(string.Join("\n", best.Moves));
 
             Console.WriteLine($"\nCalculation took {timer.Elapsed}");
         }
@@ -94,7 +98,7 @@ record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources,
 
     public IEnumerable<Strategy> StepMinute(Blueprint blueprint, int maxMinutes)
     {
-        if (Resources.Minutes == maxMinutes - 4) // Endgame time
+        if (Resources.Minutes == maxMinutes - 5) // Endgame time
             return new[] { GetEndGameStrategy(this, blueprint, maxMinutes) };
 
         if (Resources.Minutes >= maxMinutes)
@@ -111,14 +115,14 @@ record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources,
 
     static Strategy GetEndGameStrategy(Strategy strategy, Blueprint blueprint, int maxMinutes)
     {
-        var steps = 4;
-        
+        var steps = 5;
+
         // Minutes is 'maxMinutes - steps'
         if (strategy.Resources.Minutes + steps != maxMinutes)
             throw new Exception("Weird!");
 
         var next = strategy;
-        
+
         for (var i = 0; i < steps - 2; i++)
         {
             next = GetNextStrategyWithoutBuying(next);
@@ -163,19 +167,18 @@ record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources,
                 break;
         }
          */
-       
-        
+
         // if (stepsRemaining == 10 && Resources.GeodeRobots == 0)
         //       return false;
 
-        if (Resources.Clay > 30)
-            return false;
+        // if (Resources.Ore > 30)
+        //     return false;
 
-        if (Resources.Obsidian > 30)
-            return false;
+        // if (Resources.Clay > 30)
+        //    return false;
 
-        // if (Resources.Ore > 30) // ############## Was 20
-        //     return false;        
+        // if (Resources.Obsidian > 30)
+        //    return false;
 
         // Example(2) Got the answer after 200M steps with 30,30,15
         // Example(2) Got the answer after 74M steps with 10,30,15, took 8min44
