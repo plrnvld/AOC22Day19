@@ -10,7 +10,7 @@ class Program
     {
         var score = 0;
 
-        foreach (var blueprint in ReadBlueprints("Input.txt").Skip(10).Take(1)) // ################
+        foreach (var blueprint in ReadBlueprints("Input.txt").Skip(26)) // ################
         {
             Console.WriteLine($"*** Blueprint {blueprint.Num} ***\n{blueprint}\n");
 
@@ -107,7 +107,12 @@ record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources,
 
         var nextStrategyWithoutBuying = GetNextStrategyWithoutBuying(this);
 
-        return TryBuyingRobots(nextStrategyWithoutBuying, blueprint, maxMinutes).Concat(new[] { nextStrategyWithoutBuying });
+        var buyStrategies = TryBuyingRobots(nextStrategyWithoutBuying, blueprint, maxMinutes);
+
+        if (buyStrategies.Count() == 4)
+            return buyStrategies;
+
+        return buyStrategies.Concat(new[] { nextStrategyWithoutBuying });
     }
 
     static Strategy GetNextStrategyWithoutBuying(Strategy strategy) =>
@@ -116,7 +121,6 @@ record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources,
 
     static Strategy GetEndGameStrategy(Strategy strategy, Blueprint blueprint, int maxMinutes, int endGameStart)
     {
-        // Minutes is 'maxMinutes - steps'
         if (strategy.Resources.Minutes + endGameStart != maxMinutes)
             throw new Exception("Weird!");
 
@@ -215,6 +219,13 @@ record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources,
     public bool CanStillBeatRecord(int currRecord, int maxMinutes, Blueprint blueprint)
     {
         var stepsRemaining = maxMinutes - Resources.Minutes;
+
+        if (stepsRemaining == 5) // ############### Is this correct?
+        {
+            var maxGeodes = Resources.Geodes + 5 * Resources.GeodeRobots + 10; // 10 is max geodes you can still get in the last 5 steps
+            if (maxGeodes <= currRecord)
+                return false;
+        }
 
         // if (stepsRemaining == 5 && Resources.GeodeRobots == 0)
         //     return false;
