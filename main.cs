@@ -10,9 +10,9 @@ class Program
     {
         var score = 0;
 
-        foreach (var blueprint in ReadBlueprints("Input.txt").Skip(11).Take(1)) // ################
+        foreach (var blueprint in ReadBlueprints("Input.txt").Skip(10).Take(1)) // ################
         {
-            Console.WriteLine($"*** Blueprint ***\n{blueprint}\n");
+            Console.WriteLine($"*** Blueprint {blueprint.Num} ***\n{blueprint}\n");
 
             var blueprintOptimizer = new BlueprintOptimizer(blueprint);
 
@@ -45,7 +45,7 @@ class Program
 class BlueprintOptimizer
 {
     const int MaxMinutes = 24;
-    const int endGameStart = 4;
+    const int endGameStart = 5;
     Blueprint blueprint;
 
     public BlueprintOptimizer(Blueprint blueprint) => this.blueprint = blueprint;
@@ -136,7 +136,8 @@ record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources,
                 continue;
             }
 
-            if (next.Resources.Obsidian + next.Resources.ObsidianRobots * t < blueprint.GeodeRobotObsidianPrice)
+            if (next.Resources.Obsidian + next.Resources.ObsidianRobots < blueprint.GeodeRobotObsidianPrice 
+                && next.Resources.Obsidian + next.Resources.ObsidianRobots + 1 == blueprint.GeodeRobotObsidianPrice)
             {
                 var oBuys = allBuys.Where(s => s.Moves.Last().move.Matches(Robot.Obsidian));
                 if (oBuys.Any())
@@ -146,7 +147,52 @@ record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources,
                 }
             }
 
-            if (next.Resources.Ore + next.Resources.OreRobots * t < blueprint.GeodeRobotOrePrice)
+            if (next.Resources.Ore + next.Resources.OreRobots < blueprint.GeodeRobotOrePrice 
+                && next.Resources.Ore + next.Resources.OreRobots + 1 == blueprint.GeodeRobotObsidianPrice)
+            {
+                var rBuys = allBuys.Where(s => s.Moves.Last().move.Matches(Robot.Ore));
+                if (rBuys.Any())
+                {
+                    next = rBuys.First();
+                    continue;
+                }
+            }
+
+            if (t == 2 && next.Resources.Obsidian + next.Resources.ObsidianRobots < blueprint.GeodeRobotObsidianPrice 
+                && next.Resources.Obsidian + next.Resources.ObsidianRobots + 2 == blueprint.GeodeRobotObsidianPrice)
+            {
+                var oBuys = allBuys.Where(s => s.Moves.Last().move.Matches(Robot.Obsidian));
+                if (oBuys.Any())
+                {
+                    next = oBuys.First();
+                    continue;
+                }
+            }
+
+            if (t == 2 && next.Resources.Ore + next.Resources.OreRobots < blueprint.GeodeRobotOrePrice 
+                && next.Resources.Ore + next.Resources.OreRobots + 2 == blueprint.GeodeRobotObsidianPrice)
+            {
+                var rBuys = allBuys.Where(s => s.Moves.Last().move.Matches(Robot.Ore));
+                if (rBuys.Any())
+                {
+                    next = rBuys.First();
+                    continue;
+                }
+            }
+
+            if (t == 3 && next.Resources.Obsidian + next.Resources.ObsidianRobots < blueprint.GeodeRobotObsidianPrice 
+                && next.Resources.Obsidian + next.Resources.ObsidianRobots + 3 == blueprint.GeodeRobotObsidianPrice)
+            {
+                var oBuys = allBuys.Where(s => s.Moves.Last().move.Matches(Robot.Obsidian));
+                if (oBuys.Any())
+                {
+                    next = oBuys.First();
+                    continue;
+                }
+            }
+
+            if (t == 3 && next.Resources.Ore + next.Resources.OreRobots < blueprint.GeodeRobotOrePrice 
+                && next.Resources.Ore + next.Resources.OreRobots + 3 == blueprint.GeodeRobotObsidianPrice)
             {
                 var rBuys = allBuys.Where(s => s.Moves.Last().move.Matches(Robot.Ore));
                 if (rBuys.Any())
@@ -173,6 +219,7 @@ record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources,
         // if (stepsRemaining == 5 && Resources.GeodeRobots == 0)
         //     return false;
 
+        /*
         if (Resources.Clay > blueprint.ObsidianRobotClayPrice + Resources.ClayRobots + 20)
             return false;
 
@@ -181,9 +228,10 @@ record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources,
 
         if (Resources.Ore > 20) // ############## Was 20
             return false;
+        */
 
-        // if (Resources.Ore + Resources.Clay + Resources.Obsidian > 100)
-        //     return false;
+        if (Resources.Ore + Resources.Clay + Resources.Obsidian > 100)
+             return false;
 
         return true;
     }
