@@ -1,8 +1,4 @@
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
-using System.Linq;
 
 class Program
 {
@@ -10,7 +6,7 @@ class Program
     {
         var score = 0;
 
-        foreach (var blueprint in ReadBlueprints("Input.txt").Skip(0).Take(30)) // ################
+        foreach (var blueprint in ReadBlueprints("Input.txt").Skip(1).Take(1)) // ################
         {
             Console.WriteLine($"*** Blueprint {blueprint.Num} ***\n{blueprint}\n");
 
@@ -29,9 +25,6 @@ class Program
 
             score += g * n;
 
-            // Console.WriteLine($"\nBest moves have {best.Resources.Geodes} geodes:\n\n{best}\n");
-            // Console.WriteLine(string.Join("\n", best.Moves));
-
             Console.WriteLine($"\nCalculation took {timer.Elapsed}\n");
         }
 
@@ -44,7 +37,7 @@ class Program
 
 class BlueprintOptimizer
 {
-    const int MaxMinutes = 24;
+    const int MaxMinutes = 32;
     const int endGameStart = 5;
     Blueprint blueprint;
 
@@ -109,15 +102,17 @@ record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources,
         var buyStrategies = TryBuyingRobots(nextStrategyWithoutBuying, blueprint, maxMinutes);
 
         var count = buyStrategies.Count();
-        if (count is 4 || count is 1 && buyStrategies.First().Moves.Last().move.Matches(Robot.Geode))
-            return buyStrategies;        
+        var waitingHelps = !(count is 4 || count is 1 && buyStrategies.First().BoughtLast(Robot.Geode));
 
-        return buyStrategies.Concat(new[] { nextStrategyWithoutBuying });
+        return waitingHelps
+            ? buyStrategies.Concat(new[] { nextStrategyWithoutBuying })
+            : buyStrategies;
     }
 
     static Strategy GetNextStrategyWithoutBuying(Strategy strategy) =>
         strategy with { Resources = strategy.Resources.Next(), PrevResources = strategy.Resources };
 
+    bool BoughtLast(Robot robot) => Moves.Last().move.BuyRobot == robot;
 
     static Strategy GetEndGameStrategy(Strategy strategy, Blueprint blueprint, int maxMinutes, int endGameStart)
     {
@@ -133,73 +128,75 @@ record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources,
 
             var allBuys = TryBuyingRobots(next, blueprint, maxMinutes);
 
-            var gBuys = allBuys.Where(s => s.Moves.Last().move.Matches(Robot.Geode));
-            if (gBuys.Any())
+            var gBuys = allBuys.Where(s => s.BoughtLast(Robot.Geode));
+            var gBuysAny = gBuys.Any();
+            var oBuys = allBuys.Where(s => s.BoughtLast(Robot.Obsidian));
+            var oBuysAny = oBuys.Any();
+            var rBuys = allBuys.Where(s => s.BoughtLast(Robot.Ore));
+            var rBuysAny = rBuys.Any();
+
+            if (gBuysAny)
             {
                 next = gBuys.First();
                 continue;
             }
 
-            if (next.Resources.Obsidian + next.Resources.ObsidianRobots < blueprint.GeodeRobotObsidianPrice
-                && next.Resources.Obsidian + next.Resources.ObsidianRobots + 1 == blueprint.GeodeRobotObsidianPrice)
+            var nextObs = next.Resources.Obsidian + next.Resources.ObsidianRobots;
+            if (nextObs < blueprint.GeodeRobotObsidianPrice
+                && nextObs + 1 == blueprint.GeodeRobotObsidianPrice)
             {
-                var oBuys = allBuys.Where(s => s.Moves.Last().move.Matches(Robot.Obsidian));
-                if (oBuys.Any())
+                if (oBuysAny)
                 {
                     next = oBuys.First();
                     continue;
                 }
             }
 
-            if (next.Resources.Ore + next.Resources.OreRobots < blueprint.GeodeRobotOrePrice
-                && next.Resources.Ore + next.Resources.OreRobots + 1 == blueprint.GeodeRobotObsidianPrice)
+            var nextOre = next.Resources.Ore + next.Resources.OreRobots;
+            if (nextOre < blueprint.GeodeRobotOrePrice
+                && nextOre + 1 == blueprint.GeodeRobotObsidianPrice)
             {
-                var rBuys = allBuys.Where(s => s.Moves.Last().move.Matches(Robot.Ore));
-                if (rBuys.Any())
+                if (rBuysAny)
                 {
                     next = rBuys.First();
                     continue;
                 }
             }
 
-            if (t == 2 && next.Resources.Obsidian + next.Resources.ObsidianRobots < blueprint.GeodeRobotObsidianPrice
-                && next.Resources.Obsidian + next.Resources.ObsidianRobots + 2 == blueprint.GeodeRobotObsidianPrice)
+            if (t == 2 && nextObs < blueprint.GeodeRobotObsidianPrice
+                && nextObs + t == blueprint.GeodeRobotObsidianPrice)
             {
-                var oBuys = allBuys.Where(s => s.Moves.Last().move.Matches(Robot.Obsidian));
-                if (oBuys.Any())
+                if (oBuysAny)
                 {
                     next = oBuys.First();
                     continue;
                 }
             }
 
-            if (t == 2 && next.Resources.Ore + next.Resources.OreRobots < blueprint.GeodeRobotOrePrice
-                && next.Resources.Ore + next.Resources.OreRobots + 2 == blueprint.GeodeRobotObsidianPrice)
+            if (t == 2 && nextOre < blueprint.GeodeRobotOrePrice
+                && nextOre + t == blueprint.GeodeRobotObsidianPrice)
             {
-                var rBuys = allBuys.Where(s => s.Moves.Last().move.Matches(Robot.Ore));
-                if (rBuys.Any())
+                if (rBuysAny)
                 {
                     next = rBuys.First();
                     continue;
                 }
             }
 
-            if (t == 3 && next.Resources.Obsidian + next.Resources.ObsidianRobots < blueprint.GeodeRobotObsidianPrice
-                && next.Resources.Obsidian + next.Resources.ObsidianRobots + 3 == blueprint.GeodeRobotObsidianPrice)
+            if (t == 3 && nextObs < blueprint.GeodeRobotObsidianPrice
+                && nextObs + t == blueprint.GeodeRobotObsidianPrice)
             {
-                var oBuys = allBuys.Where(s => s.Moves.Last().move.Matches(Robot.Obsidian));
-                if (oBuys.Any())
+                if (oBuysAny)
                 {
                     next = oBuys.First();
                     continue;
                 }
             }
 
-            if (t == 3 && next.Resources.Ore + next.Resources.OreRobots < blueprint.GeodeRobotOrePrice
-                && next.Resources.Ore + next.Resources.OreRobots + 3 == blueprint.GeodeRobotObsidianPrice)
+            if (t == 3 && nextOre < blueprint.GeodeRobotOrePrice
+                && nextOre + t == blueprint.GeodeRobotObsidianPrice)
             {
-                var rBuys = allBuys.Where(s => s.Moves.Last().move.Matches(Robot.Ore));
-                if (rBuys.Any())
+                if (rBuysAny)
                 {
                     next = rBuys.First();
                     continue;
@@ -209,7 +206,7 @@ record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources,
 
         // MaxMinutes - 2
         next = GetNextStrategyWithoutBuying(next);
-        var geodeBuys = TryBuyingRobots(next, blueprint, maxMinutes).Where(s => s.Moves.Last().move.Matches(Robot.Geode));
+        var geodeBuys = TryBuyingRobots(next, blueprint, maxMinutes).Where(s => s.BoughtLast(Robot.Geode));
         next = geodeBuys.Any() ? geodeBuys.First() : next;
 
         // MaxMinutes - 1
@@ -223,7 +220,7 @@ record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources,
         // if (stepsRemaining == 8 && Resources.Geodes < 2)
         //    return false;
 
-        if (stepsRemaining == 6) // ############### Is this correct?
+        if (stepsRemaining == 6)
         {
             var maxExtraGeodes = Resources.Ore >= blueprint.GeodeRobotOrePrice && Resources.Obsidian >= blueprint.GeodeRobotObsidianPrice ? 15 : 10;
 
@@ -231,14 +228,14 @@ record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources,
             if (maxGeodes <= currRecord)
                 return false;
         }
-                
-        if (Resources.Ore > 29)
+
+        if (Resources.Ore > 30)
             return false;
-        
-        if (Resources.Clay > 57)
-            return false;        
-        
-        if (Resources.Obsidian > 23)
+
+        if (Resources.Clay > 50)
+            return false;
+
+        if (Resources.Obsidian > 30)
             return false;
 
         // if (Resources.Ore + Resources.Clay + Resources.Obsidian > 100) //############ Changing this to 200
@@ -278,10 +275,7 @@ record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources,
     public static Strategy Empty = new(new List<(Move, int)>(), Resources: Resources.StartResources, PrevResources: Resources.EmptyResources);
 }
 
-record struct Move(Robot BuyRobot)
-{
-    public bool Matches(Robot robot) => BuyRobot == robot;
-};
+record struct Move(Robot BuyRobot);
 
 record struct Resources(int Minutes, int Ore, int Clay, int Obsidian, int Geodes, int OreRobots, int ClayRobots, int ObsidianRobots, int GeodeRobots, int MaxOre, int MaxClay, int MaxObsidian)
 {
