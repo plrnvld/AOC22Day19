@@ -6,7 +6,9 @@ class Program
     {
         var score = 0;
 
-        foreach (var blueprint in ReadBlueprints("Input.txt").Skip(1).Take(1)) // ################
+        Console.WriteLine($"\n[Start: {DateTime.Now}]\n");
+
+        foreach (var blueprint in ReadBlueprints("Input.txt").Skip(0).Take(30)) // ################
         {
             Console.WriteLine($"*** Blueprint {blueprint.Num} ***\n{blueprint}\n");
 
@@ -37,7 +39,7 @@ class Program
 
 class BlueprintOptimizer
 {
-    const int MaxMinutes = 32;
+    const int MaxMinutes = 24;
     const int endGameStart = 5;
     Blueprint blueprint;
 
@@ -163,8 +165,8 @@ record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources,
                 }
             }
 
-            if (t == 2 && nextObs < blueprint.GeodeRobotObsidianPrice
-                && nextObs + t == blueprint.GeodeRobotObsidianPrice)
+            if (t >= 2 && nextObs < blueprint.GeodeRobotObsidianPrice
+                && nextObs + 2 == blueprint.GeodeRobotObsidianPrice)
             {
                 if (oBuysAny)
                 {
@@ -173,8 +175,8 @@ record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources,
                 }
             }
 
-            if (t == 2 && nextOre < blueprint.GeodeRobotOrePrice
-                && nextOre + t == blueprint.GeodeRobotObsidianPrice)
+            if (t >= 2 && nextOre < blueprint.GeodeRobotOrePrice
+                && nextOre + 2 == blueprint.GeodeRobotObsidianPrice)
             {
                 if (rBuysAny)
                 {
@@ -183,8 +185,8 @@ record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources,
                 }
             }
 
-            if (t == 3 && nextObs < blueprint.GeodeRobotObsidianPrice
-                && nextObs + t == blueprint.GeodeRobotObsidianPrice)
+            if (t >= 3 && nextObs < blueprint.GeodeRobotObsidianPrice
+                && nextObs + 3 == blueprint.GeodeRobotObsidianPrice)
             {
                 if (oBuysAny)
                 {
@@ -193,8 +195,8 @@ record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources,
                 }
             }
 
-            if (t == 3 && nextOre < blueprint.GeodeRobotOrePrice
-                && nextOre + t == blueprint.GeodeRobotObsidianPrice)
+            if (t >= 3 && nextOre < blueprint.GeodeRobotOrePrice
+                && nextOre + 3 == blueprint.GeodeRobotObsidianPrice)
             {
                 if (rBuysAny)
                 {
@@ -217,10 +219,7 @@ record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources,
     {
         var stepsRemaining = maxMinutes - Resources.Minutes;
 
-        // if (stepsRemaining == 8 && Resources.Geodes < 2)
-        //    return false;
-
-        if (stepsRemaining == 6)
+        if (stepsRemaining is 6)
         {
             var maxExtraGeodes = Resources.Ore >= blueprint.GeodeRobotOrePrice && Resources.Obsidian >= blueprint.GeodeRobotObsidianPrice ? 15 : 10;
 
@@ -229,32 +228,32 @@ record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources,
                 return false;
         }
 
-        if (Resources.Ore > 30)
+        if (Resources.Ore > 2* (blueprint.OreRobotOrePrice + blueprint.ClayRobotOrePrice + blueprint.ObsidianRobotOrePrice))
             return false;
 
-        if (Resources.Clay > 50)
-            return false;
+        // if (Resources.Clay > 60)
+        //     return false;
 
-        if (Resources.Obsidian > 30)
-            return false;
+        if (Resources.Clay >= blueprint.ObsidianRobotClayPrice * 8)
+             return false;        
 
-        // if (Resources.Ore + Resources.Clay + Resources.Obsidian > 100) //############ Changing this to 200
-        //    return false;
+        if (Resources.Obsidian >= blueprint.GeodeRobotObsidianPrice * 2)
+             return false;
+
+        if (Resources.Ore + Resources.Clay + Resources.Obsidian > 100)
+            return false;
 
         return true;
     }
 
-    static IEnumerable<Strategy> TryBuyingRobots(Strategy strategy, Blueprint blueprint, int maxMinutes)
+    static IList<Strategy> TryBuyingRobots(Strategy strategy, Blueprint blueprint, int maxMinutes)
     {
         var buyableRobots = allRobots.Where(robot => strategy.CanBuy(robot, blueprint));
 
         if (buyableRobots.Contains(Robot.Geode))
-            yield return BuyRobot(strategy, Robot.Geode, blueprint);
+            return new[] { BuyRobot(strategy, Robot.Geode, blueprint) };
         else
-        {
-            foreach (var buyableRobot in buyableRobots)
-                yield return BuyRobot(strategy, buyableRobot, blueprint);
-        }
+            return buyableRobots.Select(b => BuyRobot(strategy, b, blueprint)).ToList();
     }
 
     public bool CanBuy(Robot robot, Blueprint blueprint) => PrevResources.CanBuy(robot, blueprint);
@@ -262,9 +261,8 @@ record struct Strategy(List<(Move move, int minute)> Moves, Resources Resources,
     static Strategy BuyRobot(Strategy strategy, Robot robot, Blueprint blueprint)
     {
         var newResources = strategy.Resources.Buy(robot, blueprint);
-        var newMoves = new List<(Move move, int minute)>(strategy.Moves.Count + 1);
-        newMoves.AddRange(strategy.Moves);
-        newMoves.Add((new Move(robot), newResources.Minutes));
+        var newMoves = strategy.Moves.Concat(new[] { (new Move(robot), newResources.Minutes) }).ToList();
+        
         return strategy with
         {
             Moves = newMoves,
@@ -368,6 +366,9 @@ record struct Blueprint(int Num, int OreRobotOrePrice, int ClayRobotOrePrice, in
 // 5120 (32 x 10 x 16) not it
 // 5632 (32 x 11 x 16) not it (guessed 19:14)
 // 5104 (29 x 11 x 16) not it (guessed 19:58)
+// 5568 (28 x 12 * 16) not it
 
 
 // New calculation (Feb 14, after calculating 7 hours, with Ore + Clay + Obsidian <= 200, and endgame start = 5) now says blueprint 1 has a max result of 29??
+
+// New calculation 29 x 10 x 31 = 8990
